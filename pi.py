@@ -1,15 +1,16 @@
-# Potential Intensity Calculation for Python
+# Potential Intensity Calculation for Python [pypi]
 # -----------------------------------------------------------------------------------
 # Adapted from pcmin.m by Kerry Emanuel (ftp://texmex.mit.edu/pub/emanuel/TCMAX)
-# Originally Updated by Daniel Gilford for
+# 
+# pc_min.m was originally updated by Daniel Gilford for
 # Gilford et al. (2017) -- https://journals.ametsoc.org/doi/full/10.1175/JCLI-D-16-0827.1
 # Gilford et al. (2019) -- https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1
 # 
-# Adapted for Python (NAME OF REPOSITORY) by Daniel Gilford, PhD (Rutgers U., daniel.gilford@rutgers.edu)
-# Last updated 4/1/2020
+# Adapted for Python (pypi) by Daniel Gilford, PhD (Rutgers U., daniel.gilford@rutgers.edu)
+# Last updated 4/8/2020
 # -----------------------------------------------------------------------------------
 #
-# Revision History:
+# PI Calculation Revision History:
 #   Revised on 9/24/2005 by K. Emanuel to fix convergence problems at high pressure
 #     Converted to MATLAB  5/17/2008
 #
@@ -17,7 +18,7 @@
 #   Revised 8/4/16 by D. Gilford to include lack of convergence if SST < 5C for TO/LNB
 #   Revised 8/5/16 by D. Gilford to fix the "cape()" function output and include LNB
 #   Revised 10/3/16 by D. Gilford to set LNB to the pressure-weighted crossing of buoyancy from negative to positive (the zero-line)
-#     Converted to Python  4/1/2020
+#     Converted to Python  4/1/20
 # -----------------------------------------------------------------------------------
 # 
 #   ***    This function calculates the maximum wind speed         ***
@@ -69,48 +70,48 @@
 # import packages we need
 import numpy as np
 
-# # define the function to calculate PI
-# def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8):
+# define the function to calculate PI
+def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8):
     
-#     # convert units
-#     SSTK=SSTC+273.15 # SST in kelvin
-#     TK=T+273.15      # Temperature profile in kelvin
-#     Rgg=R*0.001   # Mixing ratio profile in gm/gm
+    # convert units
+    SSTK=SSTC+273.15 # SST in kelvin
+    TK=T+273.15      # Temperature profile in kelvin
+    Rgg=R*0.001   # Mixing ratio profile in gm/gm
 
-#     # CHECK 1: do SSTs exceed 5C? If not, return missing PI
-#     if (SSTC <= 5.0):
-#         VMAX=np.nan
-#         PMIN=np.nan
-#         IFL=0
-#         TO=np.nan
-#         LNB=np.nan
-#         return(VMAX,PMIN,IFL,TO,LNB)
-#     end
+    # CHECK 1: do SSTs exceed 5C? If not, return missing PI
+    if (SSTC <= 5.0):
+        VMAX=np.nan
+        PMIN=np.nan
+        IFL=0
+        TO=np.nan
+        LNB=np.nan
+        return(VMAX,PMIN,IFL,TO,LNB)
+    end
 
-#     # CHECK 2: do Temperature profiles exceed 100K? If not, return missing PI
-#     if (np.min(T) <= 100):
-#         VMAX=np.nan
-#         PMIN=np.nan
-#         IFL=0
-#         TO=np.nan
-#         LNB=np.nan
-#         return(VMAX,PMIN,IFL,TO,LNB)
-#     end
+    # CHECK 2: do Temperature profiles exceed 100K? If not, return missing PI
+    if (np.min(T) <= 100):
+        VMAX=np.nan
+        PMIN=np.nan
+        IFL=0
+        TO=np.nan
+        LNB=np.nan
+        return(VMAX,PMIN,IFL,TO,LNB)
+    end
 
-#     # Constants
-#     NK=0  # level from which parcels lifted
-#     b=2.0 # Exponent in assumed profile of azimuthal velocity in eye, V=V_m(r/r_m)**b
+    # Constants
+    NK=0  # level from which parcels lifted
+    b=2.0 # Exponent in assumed profile of azimuthal velocity in eye, V=V_m(r/r_m)**b
 
-#     # Initial saturated water vapor pressure, from Clausius-Clapeyron relation/August-Roche-Magnus formula
-#     ES0=6.112*np.exp(17.67*SSTC/(243.5+SSTC))
-
-
+    # Initial saturated water vapor pressure, from Clausius-Clapeyron relation/August-Roche-Magnus formula
+    ES0=6.112*np.exp(17.67*SSTC/(243.5+SSTC))
 
 
 
 
-#     # Return the calculated outputs to the above program level
-#     return(VMAX,PMIN,IFL,TO,LNB)
+
+
+    # Return the calculated outputs to the above program level
+    return(VMAX,PMIN,IFL,TO,LNB)
 
 
 
@@ -136,7 +137,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
 #
 #           T,R,P: One-dimensional arrays 
 #             containing environmental pressure (hPa), temperature (K),
-#             and mixing ratio (gram/gram) profiles.
+#             and mixing ratio (gram/gram) profiles
 #
 #           ascent_flag: Adjustable constant integer for buoyancy of displaced  
 #           parcels, where 0=Reversible ascent;  1=Pseudo-adiabatic ascent
@@ -145,7 +146,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
 #
 #
 #  OUTPUT:  CAPED (J/kg) is Convective Available Potential Energy of an air parcel
-#           consistent with its parcel and environmental properties.
+#           consistent with its parcel and environmental properties
 #
 #           TOB is the Temperature (K) at the level of neutral bouyancy 
 #           for the displaced air parcel
@@ -311,6 +312,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
             #
             #   *** Calculate buoyancy   ***
             #
+            
             # Parcel Mixing ratio: either reversible (ascent_flag=0) or pseudo-adiabatic (ascent_flag=1)
             RMEAN=ascent_flag*RG+(1-ascent_flag)*RP
             # Parcel and Environmental Density Temperatures at this pressure (E94, EQN. 4.3.1 and 6.3.7)
@@ -322,7 +324,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
 
     #
     #  ***  Begin loop to find Positive areas (PA) and Negative areas (NA) ***
-    #                  ***  and CAPE from reversible ascent ***
+    #  ***                 and CAPE from reversible ascent                 ***
     NA=0.0
     PA=0.0
     
@@ -348,7 +350,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
     
     #
     #   ***  Find positive and negative areas and CAPE  ***
-    #                  via E94, EQN. 6.3.6)
+    #   ***             via E94, EQN. 6.3.6)            ***
     #
         for j in range(jmin+1, INB+1, 1):
             PFAC=RD*(TVRDIF[j]+TVRDIF[j-1])*(P[j-1]-P[j])/(P[j]+P[j-1])
@@ -364,8 +366,8 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
         NA=NA-PFAC*np.min([TVRDIF[jmin],0.0])
         
     #
-    #   ***   Find residual positive area above INB and TO  ***
-    #         and finalize estimate of LNB and its temperature
+    #   ***   Find residual positive area above INB and TO   ***
+    #   *** and finalize estimate of LNB and its temperature ***
     #
         PAT=0.0
         TOB=T[INB]
