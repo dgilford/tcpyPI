@@ -1,0 +1,7 @@
+################
+# .gitignore for pypi
+################
+
+*__pycache__
+*.ipynb_check*
+*.DS_Store
