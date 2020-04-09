@@ -43,17 +43,23 @@
 #             mixing ratios are not important above the boundary
 #             layer. Missing mixing ratios can be replaced by zeros
 #
-#           CKCD: Ratio of C_k to C_D, Default=0.9 based on... (unitless number)
+#           CKCD: Ratio of C_k to C_D (unitless number), i.e. the ratio
+#             of the exchange coefficients of enthalpy and momentum flux
+#             (e.g. see Bister and Emanuel 1998, EQN. 17-18). More discussion
+#             on CK/CD is found in Emanuel (2003). Default is 0.9 based
+#             on e.g. Wing et al. (2015)
 #
-#           ascent_flag: Adjustable constant integer for buoyancy of displaced  
-#              parcels, where 0=Reversible ascent (default);  1=Pseudo-adiabatic ascent
-#              diss_flag: (flag integer; 0 or 1)
+#           ascent_flag: Adjustable constant integer (flag integer; 0 or 1) 
+#              for buoyancy of displaced parcels, where 
+#              0=Reversible ascent (default) and 1=Pseudo-adiabatic ascent
 #
-#           diss_flag: 
+#           diss_flag: Adjustable switch integer (flag integer; 0 or 1)
+#              for whether dissipative heating is 1=allowed (default) or 0=disallowed.
+#              See Bister and Emanuel (1998) for inclusion of dissipative heating.
 #
-#           V_reduc: Default=0.8 based on... (unitless fraction)
-#
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!! STOPPED HERE, FILL OUT ALL THESE INPUTS
+#           V_reduc: Adjustable constant fraction (unitless fraction) 
+#              for reduction of gradient winds to 10-m winds see 
+#              Emanuel (2000) and Powell (1980). Default is 0.8
 #
 #  OUTPUT:  PMIN is the minimum central pressure (hPa)
 #
@@ -118,7 +124,7 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8):
     PP=P[NK]
     (CAPEA,_,_,IFLAG)=cape(TP,RP,PP,T,R,P,ascent_flag,ptop)
     # if the CAPE function tripped a flag, set the output IFL to it
-    if (int(IFLAG) != int(1)):
+    if (IFLAG != 1):
         IFL=int(IFLAG)
     
     #
@@ -143,7 +149,7 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8):
         RP=EPS*R[NK]*MSL/(PP*(EPS+R[NK])-R[NK]*MSL)
         (CAPEM,_,_,IFLAG)=cape(TP,RP,PP,T,R,P,ascent_flag,ptop)
         # if the CAPE function tripped a flag, set the output IFL to it
-        if (int(IFLAG) != int(1)):
+        if (IFLAG != 1):
             IFL=int(IFLAG)
         
         #
@@ -158,7 +164,7 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8):
         RP=0.622*ES0/(PP-ES0)
         (CAPEMS, TOMS, LNBS, IFLAG)=cape(TP,RP,PP,T,R,P,ascent_flag,ptop)
         # if the CAPE function tripped a flag, set the output IFL to it
-        if (int(IFLAG) != int(1)):
+        if (IFLAG != 1):
             IFL=int(IFLAG)
         # Store the outflow temperature and level of neutral bouyancy
         TO=TOMS   
@@ -197,7 +203,7 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8):
         #   ***   If the routine does not converge, set IFL=0 and return missing PI   ***
         #
         if (NP > 200)  or (PM < 400):
-            MAX=np.nan
+            VMAX=np.nan
             PMIN=np.nan
             IFL=0
             TO=np.nan
@@ -217,7 +223,7 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8):
     # BE02 EQN. 3, reduced by some fraction (default 20%) to account for the reduction 
     # of 10-m winds from gradient wind speeds (Emanuel 2000, Powell 1980)
     FAC=np.max([0.0,(CAPEMS-CAPEM)])
-    VMAX=V_reduc*np.sqrt(CKCD*RAT*FAC);
+    VMAX=V_reduc*np.sqrt(CKCD*RAT*FAC)
         
     # Return the calculated outputs to the above program level
     return(VMAX,PMIN,IFL,TO,LNB)
@@ -300,12 +306,12 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
     #  ***  Define various parcel quantities, including reversible   ***
     #  ***                       entropy, S                          ***
     #                         
-    TPC=TP-273.15    # Parcel temperature in Celsius
+    TPC=TP-273.15                           # Parcel temperature in Celsius
     ESP=6.112*np.exp(17.67*TPC/(243.5+TPC)) # Parcel's saturated vapor pressure
-    EVP=RP*PP/(EPS+RP) # Parcel's partial vapor pressure
-    RH=EVP/ESP # Parcel's relative humidity
-    RH=np.min([float(RH),1.0]) # ensure that the relatively humidity does not exceed 1
-    ALV=ALV0+CPVMCL*TPC # calculate the latent heat of vaporization, dependant on temperature
+    EVP=RP*PP/(EPS+RP)                      # Parcel's partial vapor pressure
+    RH=EVP/ESP                              # Parcel's relative humidity
+    RH=np.min([RH,1.0])                     # ensure that the relatively humidity does not exceed 1.0
+    ALV=ALV0+CPVMCL*TPC                     # calculate the latent heat of vaporization, dependant on temperature
     # calculate reversible total specific entropy per unit mass of dry air (E94, EQN. 4.5.9)
     S=(CPD+RP*CL)*np.log(TP)-RD*np.log(PP-EVP)+ALV*RP/TP-RP*RV*np.log(RH)
     
@@ -446,7 +452,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
         CAPED=0
         TOB=T[0]
         LNB=P[0]
-        IFLAG=2;
+        IFLAG=2
         # Return the uncoverged values
         return(CAPED,TOB,LNB,IFLAG)
     
@@ -477,17 +483,17 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
         PAT=0.0
         TOB=T[INB]
         LNB=P[INB]
-        if (INB < N):
+        if (INB < N-1):
             PINB=(P[INB+1]*TVRDIF[INB]-P[INB]*TVRDIF[INB+1])/(TVRDIF[INB]-TVRDIF[INB+1])
-            LNB=PINB;
-            PAT=RD*TVRDIF[INB]*(P[INB]-PINB)/(P[INB]+PINB);
-            TOB=(T[INB]*(PINB-P[INB+1])+T[INB+1]*(P[INB]-PINB))/(P[INB]-P[INB+1]);
+            LNB=PINB
+            PAT=RD*TVRDIF[INB]*(P[INB]-PINB)/(P[INB]+PINB)
+            TOB=(T[INB]*(PINB-P[INB+1])+T[INB+1]*(P[INB]-PINB))/(P[INB]-P[INB+1])
     
     #
     #   ***   Find CAPE  ***
     #            
-        CAPED=PA+PAT-NA;
-        CAPED=np.max([CAPED,0.0]);
+        CAPED=PA+PAT-NA
+        CAPED=np.max([CAPED,0.0])
         # set the flag to OK if we reached this far
         IFLAG=1
         # Return the calculated outputs to the above program level 
