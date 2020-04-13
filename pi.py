@@ -17,69 +17,11 @@
 #   Revised 8/4/16 by D. Gilford to include lack of convergence if SST < 5C for TO/LNB
 #   Revised 8/5/16 by D. Gilford to fix the "cape()" function output and include LNB
 #   Revised 10/3/16 by D. Gilford to set LNB to the pressure-weighted crossing of buoyancy from negative to positive (the zero-line)
-#     Converted to Python  4/1/2020
+#     Converted to Python  04/2020
 #   Revised 4/10/2020 by D. Rothenberg (daniel@danielrothenberg.com) for Numba optimization
 #
 # -----------------------------------------------------------------------------------
-# 
-#   ***    This function calculates the maximum wind speed         ***
-#   ***             and mimimum central pressure                   ***
-#   ***    achievable in tropical cyclones, given a sounding       ***
-#   ***             and a sea surface temperature.                 ***
-#
-#   Thermodynamic and dynamic technical backgrounds (and calculations) are found in Bister 
-#   and Emanuel (2002; BE02) and Emanuel's "Atmospheric Convection" (E94; 1994; ISBN: 978-0195066302)
-#
-#  INPUT:   SSTC: Sea surface temperature (C)
-#
-#           MSL: Mean Sea level pressure (hPa)
-#
-#           P,T,R: One-dimensional arrays 
-#             containing pressure (hPa), temperature (C),
-#             and mixing ratio (g/kg). The arrays MUST be
-#             arranged so that the lowest index corresponds
-#             to the lowest model level, with increasing index
-#             corresponding to decreasing pressure. The temperature
-#             sounding should extend to at least the tropopause and 
-#             preferably to the lower stratosphere, however the
-#             mixing ratios are not important above the boundary
-#             layer. Missing mixing ratios can be replaced by zeros
-#
-#           CKCD: Ratio of C_k to C_D (unitless number), i.e. the ratio
-#             of the exchange coefficients of enthalpy and momentum flux
-#             (e.g. see Bister and Emanuel 1998, EQN. 17-18). More discussion
-#             on CK/CD is found in Emanuel (2003). Default is 0.9 based
-#             on e.g. Wing et al. (2015)
-#
-#           ascent_flag: Adjustable constant integer (flag integer; 0 or 1) 
-#              for buoyancy of displaced parcels, where 
-#              0=Reversible ascent (default) and 1=Pseudo-adiabatic ascent
-#
-#           diss_flag: Adjustable switch integer (flag integer; 0 or 1)
-#              for whether dissipative heating is 1=allowed (default) or 0=disallowed.
-#              See Bister and Emanuel (1998) for inclusion of dissipative heating.
-#
-#           V_reduc: Adjustable constant fraction (unitless fraction) 
-#              for reduction of gradient winds to 10-m winds see 
-#              Emanuel (2000) and Powell (1980). Default is 0.8
-#
-#  OUTPUT:  PMIN is the minimum central pressure (hPa)
-#
-#           VMAX is the maximum surface wind speed (m/s)
-#              reduced to reflect surface drag via V_reduc
-#
-#           TO is the outflow temperature (K)
-#
-#           LNB is the level of neutral bouyancy where the outflow temperature
-#              is found (hPa), i.e. where buoyancy is actually equal to zero under the 
-#              condition of an air parcel that is saturated at sea level pressure
-#
-#           IFL is a flag: A value of 1 means OK; a value of 0
-#              indicates no convergence; a value of 2
-#              means that the CAPE routine failed to converge
-#
 # -----------------------------------------------------------------------------------
-#
 #
 
 # import required packages
@@ -88,9 +30,9 @@ import numba as nb
 
 # define the function to calculate CAPE
 @nb.njit()
-def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
+def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=0):
 
-#     function [CAPED,TOB,LNB,IFLAG]= cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50)
+#     function [CAPED,TOB,LNB,IFLAG]= cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=0)
 #
 #       This function calculates the CAPE of a parcel given parcel pressure PP (hPa), 
 #       temperature TP (K) and mixing ratio RP (gram/gram) and given a sounding
@@ -110,9 +52,15 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
 #             and mixing ratio (gram/gram) profiles.
 #
 #           ascent_flag: Adjustable constant integer for buoyancy of displaced  
-#           parcels, where 0=Reversible ascent;  1=Pseudo-adiabatic ascent
+#             parcels, where 0=Reversible ascent;  1=Pseudo-adiabatic ascent
 #
 #           ptop: Pressure below which sounding is ignored (hPa)
+#
+#           miss_handle: Flag that determines how missing (NaN) values are handled.
+#             If = 0 (BE02 default), NaN values in profile are ignored and PI is still calcuated
+#             If = 1, given NaN values PI will be set to missing (with IFLAG=3)
+#             NOTE: If any missing values are between the lowest valid level and ptop
+#             then PI will automatically be set to missing (with IFLAG=3)
 #
 #
 #  OUTPUT:  CAPED (J/kg) is Convective Available Potential Energy of an air parcel
@@ -129,16 +77,54 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
 #              means that the routine failed to converge
 #
 
+    #
+    #   ***  Handle missing values   ***
+    #
+    
+    # find if any values are missing in the temperature or mixing ratio array
+    valid_i=~np.isnan(T)
+    first_valid=np.where(valid_i)[0][0]
+    # Are there missing values? If so, assess according to flag
+    if (np.sum(valid_i) != len(P)):
+        ('stop here')
+        # if not allowed, set IFLAG=3 and return missing CAPE
+        if (miss_handle != 0):
+            CAPED=np.nan
+            TOB=np.nan
+            LNB=np.nan
+            IFLAG=3
+            # Return the unsuitable values
+            return(CAPED,TOB,LNB,IFLAG)
+        else:
+            # if allowed, but there are missing values between the lowest existing level
+            # and ptop, then set IFLAG=3 and return missing CAPE
+            if np.sum(np.isnan(T[first_valid:len(P)])>0):
+                CAPED=np.nan
+                TOB=np.nan
+                LNB=np.nan
+                IFLAG=3
+                # Return the unsuitable values
+                return(CAPED,TOB,LNB,IFLAG)
+            else:
+                first_lvl=first_valid
+    else:
+        first_lvl=0
+
     # Populate new environmental profiles removing values above ptop and
     # find new number, N, of profile levels with which to calculate CAPE
     N=np.argmin(np.abs(P-ptop))
     
-    P=P[:N]
-    T=T[:N]
-    R=R[:N]
-    TVRDIF = np.zeros((N,))
+    P=P[first_lvl:N]
+    T=T[first_lvl:N]
+    R=R[first_lvl:N]
+    nlvl=len(P)
+    TVRDIF = np.zeros((nlvl,))
+    
+    #
+    #   ***  Run checks   ***
+    #
 
-    # CHECK: Is the input parcel suitable? If not, return missing PI
+    # CHECK: Is the input parcel suitable? If not, return missing CAPE
     if ((RP < 1e-6) or (TP < 200)):
         CAPED=0
         TOB=np.nan
@@ -146,6 +132,10 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
         IFLAG=0
         # Return the unsuitable values
         return(CAPED,TOB,LNB,IFLAG)
+    
+    #
+    #   ***  Define constants   ***
+    #
 
     # Thermodynamic Constants
     CPD=1005.7       # [J/kg.K] Specific heat of dry air at constant pressure
@@ -196,7 +186,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
     #
 
     # loop over each level in the profile
-    for j in range(N):
+    for j in range(nlvl):
         
         # jmin is the index of the lowest pressure level evaluated in the loop
         jmin=int(min([jmin,j]))
@@ -300,7 +290,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
     #   ***  Find maximum level of positive buoyancy, INB    ***
     #
     INB=0
-    for j in range(N-1, jmin, -1):
+    for j in range(nlvl-1, jmin, -1):
         if (TVRDIF[j] > 0):
             INB=max([INB,j])
             
@@ -308,9 +298,11 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
     if (INB==0):
         CAPED=0
         TOB=T[0]
-        LNB=P[0]
+#         LNB=P[0]
+#         TOB=np.nan
+        LNB=0
         IFLAG=2
-        # Return the uncoverged values
+        # Return the unconverged values
         return(CAPED,TOB,LNB,IFLAG)
     
     # if check is passed, continue with the CAPE calculation
@@ -340,7 +332,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
         PAT=0.0
         TOB=T[INB]
         LNB=P[INB]
-        if (INB < N-1):
+        if (INB < nlvl-1):
             PINB=(P[INB+1]*TVRDIF[INB]-P[INB]*TVRDIF[INB+1])/(TVRDIF[INB]-TVRDIF[INB+1])
             LNB=PINB
             PAT=RD*TVRDIF[INB]*(P[INB]-PINB)/(P[INB]+PINB)
@@ -361,7 +353,72 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
 
 # define the function to calculate PI
 @nb.njit()
-def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8):
+def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle=0):
+    
+#     function [VMAX,PMIN,IFL,TO,LNB] = pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle=0)
+#
+#   ***    This function calculates the maximum wind speed         ***
+#   ***             and mimimum central pressure                   ***
+#   ***    achievable in tropical cyclones, given a sounding       ***
+#   ***             and a sea surface temperature.                 ***
+#
+#   Thermodynamic and dynamic technical backgrounds (and calculations) are found in Bister 
+#   and Emanuel (2002; BE02) and Emanuel's "Atmospheric Convection" (E94; 1994; ISBN: 978-0195066302)
+#
+#  INPUT:   SSTC: Sea surface temperature (C)
+#
+#           MSL: Mean Sea level pressure (hPa)
+#
+#           P,T,R: One-dimensional arrays 
+#             containing pressure (hPa), temperature (C),
+#             and mixing ratio (g/kg). The arrays MUST be
+#             arranged so that the lowest index corresponds
+#             to the lowest model level, with increasing index
+#             corresponding to decreasing pressure. The temperature
+#             sounding should extend to at least the tropopause and 
+#             preferably to the lower stratosphere, however the
+#             mixing ratios are not important above the boundary
+#             layer. Missing mixing ratios can be replaced by zeros
+#
+#           CKCD: Ratio of C_k to C_D (unitless number), i.e. the ratio
+#             of the exchange coefficients of enthalpy and momentum flux
+#             (e.g. see Bister and Emanuel 1998, EQN. 17-18). More discussion
+#             on CK/CD is found in Emanuel (2003). Default is 0.9 based
+#             on e.g. Wing et al. (2015)
+#
+#           ascent_flag: Adjustable constant integer (flag integer; 0 or 1) 
+#              for buoyancy of displaced parcels, where 
+#              0=Reversible ascent (default) and 1=Pseudo-adiabatic ascent
+#
+#           diss_flag: Adjustable switch integer (flag integer; 0 or 1)
+#              for whether dissipative heating is 1=allowed (default) or 0=disallowed.
+#              See Bister and Emanuel (1998) for inclusion of dissipative heating.
+#
+#           V_reduc: Adjustable constant fraction (unitless fraction) 
+#              for reduction of gradient winds to 10-m winds see 
+#              Emanuel (2000) and Powell (1980). Default is 0.8
+#
+#           miss_handle: Flag that determines how missing (NaN) values are handled in CAPE calculation
+#             If = 0 (BE02 default), NaN values in profile are ignored and PI is still calcuated
+#             If = 1, given NaN values PI will be set to missing (with IFLAG=3)
+#             NOTE: If any missing values are between the lowest valid level and ptop
+#             then PI will automatically be set to missing (with IFLAG=3)
+#
+#  OUTPUT:  VMAX is the maximum surface wind speed (m/s)
+#              reduced to reflect surface drag via V_reduc
+#
+#           PMIN is the minimum central pressure (hPa)
+#
+#           IFL is a flag: A value of 1 means OK; a value of 0
+#              indicates no convergence; a value of 2
+#              means that the CAPE routine failed to converge
+#
+#           TO is the outflow temperature (K)
+#
+#           LNB is the level of neutral bouyancy where the outflow temperature
+#              is found (hPa), i.e. where buoyancy is actually equal to zero under the 
+#              condition of an air parcel that is saturated at sea level pressure
+#
     
     # convert units
     SSTK=SSTC+273.15 # SST in kelvin
@@ -385,6 +442,13 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8):
         TO=np.nan
         LNB=np.nan
         return(VMAX,PMIN,IFL,TO,LNB)
+    
+    # Set Missing mixing ratios to zero gm/gm, following Kerry's algorithm
+    R[np.isnan(R)]=0.
+    
+    # Saturated water vapor pressure
+    # from Clausius-Clapeyron relation/August-Roche-Magnus formula
+    ES0=6.112*np.exp(17.67*SSTC/(243.5+SSTC))
 
     # Constants
     NK=0         # level from which parcels lifted (first pressure level)
@@ -399,7 +463,7 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8):
     TP=T[NK]
     RP=R[NK]
     PP=P[NK]
-    result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop)
+    result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle)
     CAPEA = result[0]
     IFLAG = result[3]
     # if the CAPE function tripped a flag, set the output IFL to it
@@ -426,10 +490,10 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8):
         TP=T[NK]
         PP=min([PM,1000.0])
         RP=EPS*R[NK]*MSL/(PP*(EPS+R[NK])-R[NK]*MSL)
-        result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop)
+        result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle)
         CAPEM = result[0]
         IFLAG = result[3]
-        # if the CAPE function tripped a flag, set the output IFL to it
+        # if the CAPE function tripped a different flag, set the output IFL to it
         if (IFLAG != 1):
             IFL=int(IFLAG)
         
@@ -439,11 +503,8 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8):
         #
         TP=SSTK
         PP=min([PM,1000.0])
-        # Initial saturated water vapor pressure
-        # from Clausius-Clapeyron relation/August-Roche-Magnus formula
-        ES0=6.112*np.exp(17.67*SSTC/(243.5+SSTC))
         RP=0.622*ES0/(PP-ES0)
-        result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop)
+        result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle)
         CAPEMS, TOMS, LNBS, IFLAG = result
         # if the CAPE function tripped a flag, set the output IFL to it
         if (IFLAG != 1):
