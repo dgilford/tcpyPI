@@ -6,7 +6,7 @@
 # Gilford et al. (2019) -- https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1
 # 
 # Adapted for Python (pypi) by Daniel Gilford, PhD (Rutgers U., daniel.gilford@rutgers.edu)
-# Last updated 4/1/2020
+# Last updated 4/13/2020
 # -----------------------------------------------------------------------------------
 #
 # Revision History:
@@ -18,7 +18,8 @@
 #   Revised 8/5/16 by D. Gilford to fix the "cape()" function output and include LNB
 #   Revised 10/3/16 by D. Gilford to set LNB to the pressure-weighted crossing of buoyancy from negative to positive (the zero-line)
 #     Converted to Python  4/1/2020
-# 
+#   Revised 4/10/2020 by D. Rothenberg (daniel@danielrothenberg.com) for Numba optimization
+#
 # -----------------------------------------------------------------------------------
 # 
 #   ***    This function calculates the maximum wind speed         ***
@@ -81,156 +82,12 @@
 #
 #
 
-# import packages we need
+# import required packages
 import numpy as np
-
-# define the function to calculate PI
-def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8):
-    
-    # convert units
-    SSTK=SSTC+273.15 # SST in kelvin
-    T=T+273.15       # Temperature profile in kelvin
-    R=R*0.001        # Mixing ratio profile in gm/gm
-
-    # CHECK 1: do SSTs exceed 5C? If not, set IFL=0 and return missing PI
-    if (SSTC <= 5.0):
-        VMAX=np.nan
-        PMIN=np.nan
-        IFL=0
-        TO=np.nan
-        LNB=np.nan
-        return(VMAX,PMIN,IFL,TO,LNB)
-
-    # CHECK 2: do Temperature profiles exceed 100K? If not, set IFL=0 and return missing PI
-    if (np.min(T) <= 100):
-        VMAX=np.nan
-        PMIN=np.nan
-        IFL=0
-        TO=np.nan
-        LNB=np.nan
-        return(VMAX,PMIN,IFL,TO,LNB)
-
-    # Constants
-    NK=0         # level from which parcels lifted (first pressure level)
-    b=2.0        # Exponent for estimating azimuthal velocity in the eye, V=V_m(r/r_m)**b (Emanuel 1995, EQN. 25)
-    ptop=50      # Pressure below which sounding is ignored (hPa)
-    RD=287.04    # [J/kg.K] gas constant of dry air
-    EPS=RD/461.5 # [unitless] epsilon, the ratio of gas constants
-    
-    #
-    #   ***   Find environmental CAPE *** 
-    #
-    TP=T[NK]
-    RP=R[NK]
-    PP=P[NK]
-    (CAPEA,_,_,IFLAG)=cape(TP,RP,PP,T,R,P,ascent_flag,ptop)
-    # if the CAPE function tripped a flag, set the output IFL to it
-    if (IFLAG != 1):
-        IFL=int(IFLAG)
-    
-    #
-    #   ***   Begin iteration to find mimimum pressure   ***
-    #
-    
-    # set loop counter and initial condition
-    NP=0         # loop counter
-    PM=970.0
-    PMOLD=PM     # initial condition from minimum pressure
-    PNEW=0.0     # initial condition from minimum pressure
-    IFL=int(1)   # Default flag for CAPE calculation
-
-    # loop until we converge
-    while (np.abs(PNEW-PMOLD) > 0.5):
-        
-        #
-        #   ***  Find CAPE at radius of maximum winds   ***
-        #
-        TP=T[NK]
-        PP=np.min([PM,1000.0])
-        RP=EPS*R[NK]*MSL/(PP*(EPS+R[NK])-R[NK]*MSL)
-        (CAPEM,_,_,IFLAG)=cape(TP,RP,PP,T,R,P,ascent_flag,ptop)
-        # if the CAPE function tripped a flag, set the output IFL to it
-        if (IFLAG != 1):
-            IFL=int(IFLAG)
-        
-        #
-        #  ***  Find saturation CAPE at radius of maximum winds    ***
-        #  *** Note that TO and LNB are found with this assumption ***
-        #
-        TP=SSTK
-        PP=np.min([PM,1000.0])
-        # Initial saturated water vapor pressure
-        # from Clausius-Clapeyron relation/August-Roche-Magnus formula
-        ES0=6.112*np.exp(17.67*SSTC/(243.5+SSTC))
-        RP=0.622*ES0/(PP-ES0)
-        (CAPEMS, TOMS, LNBS, IFLAG)=cape(TP,RP,PP,T,R,P,ascent_flag,ptop)
-        # if the CAPE function tripped a flag, set the output IFL to it
-        if (IFLAG != 1):
-            IFL=int(IFLAG)
-        # Store the outflow temperature and level of neutral bouyancy
-        TO=TOMS   
-        LNB=LNBS
-        # Calculate the proxy for TC efficiency (BE02, EQN. 1-3)
-        RAT=SSTK/TO
-        # If dissipative heating is "off", TC efficiency proxy is set to 1.0 (BE02, pg. 3)
-        if (diss_flag == 0):
-            RAT=1.0
-        
-        #
-        #  ***  Initial estimate of minimum pressure   ***
-        #
-        RS0=RP
-        # Surface Density Temperature (E94, EQN. 4.3.1 and 6.3.7)
-        TV0=T[0]*(1.+R[0]/EPS)/(1.+R[0])
-        # Average Surface Density Temperature, e.g. 1/2*[Tv(Tsfc)+Tv(sst)]
-        TVAV=0.5*(TV0+SSTK*(1.+RS0/EPS)/(1.+RS0))
-        # Converge toward CAPE*-CAPEM (BE02, EQN 3-4)
-        CAT=(CAPEM-CAPEA)+0.5*CKCD*RAT*(CAPEMS-CAPEM)
-        CAT=np.max([CAT,0.0])
-        # Iterate on pressure
-        PNEW=MSL*np.exp(-CAT/(RD*TVAV))
-        
-        #
-        #   ***  Test for convergence (setup for possible next while iteration)  ***
-        #
-        # store the previous step's pressure       
-        PMOLD=PM
-        # store the current step's pressure
-        PM=PNEW
-        # increase iteration count in the loop
-        NP=NP+1
-        
-        #
-        #   ***   If the routine does not converge, set IFL=0 and return missing PI   ***
-        #
-        if (NP > 200)  or (PM < 400):
-            VMAX=np.nan
-            PMIN=np.nan
-            IFL=0
-            TO=np.nan
-            LNB=np.nan
-            return(VMAX,PMIN,IFL,TO,LNB)
-    
-    # Once converged, set potential intensity at the radius of maximum winds
-    CATFAC=0.5*(1.+1/b)
-    CAT=(CAPEM-CAPEA)+CKCD*RAT*CATFAC*(CAPEMS-CAPEM)
-    CAT=np.max([CAT,0.0])
-    
-    # Calculate the minimum pressure at the radius of maximum winds
-    # BE02 EQN. 4
-    PMIN=MSL*np.exp(-CAT/(RD*TVAV))
-                 
-    # Calculate the potential intensity at the radius of maximum winds
-    # BE02 EQN. 3, reduced by some fraction (default 20%) to account for the reduction 
-    # of 10-m winds from gradient wind speeds (Emanuel 2000, Powell 1980)
-    FAC=np.max([0.0,(CAPEMS-CAPEM)])
-    VMAX=V_reduc*np.sqrt(CKCD*RAT*FAC)
-        
-    # Return the calculated outputs to the above program level
-    return(VMAX,PMIN,IFL,TO,LNB)
-
+import numba as nb
 
 # define the function to calculate CAPE
+@nb.njit()
 def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
 
 #     function [CAPED,TOB,LNB,IFLAG]= cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50)
@@ -274,14 +131,12 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
 
     # Populate new environmental profiles removing values above ptop and
     # find new number, N, of profile levels with which to calculate CAPE
-    try:
-        N=np.where((P-ptop) <= 0)[0][0]
-    except:
-        N=len(P)
+    N=np.argmin(np.abs(P-ptop))
+    
     P=P[:N]
     T=T[:N]
     R=R[:N]
-    TVRDIF=np.zeros((N,),dtype='float64')
+    TVRDIF = np.zeros((N,))
 
     # CHECK: Is the input parcel suitable? If not, return missing PI
     if ((RP < 1e-6) or (TP < 200)):
@@ -311,7 +166,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
     ESP=6.112*np.exp(17.67*TPC/(243.5+TPC)) # Parcel's saturated vapor pressure
     EVP=RP*PP/(EPS+RP)                      # Parcel's partial vapor pressure
     RH=EVP/ESP                              # Parcel's relative humidity
-    RH=np.min([RH,1.0])                     # ensure that the relatively humidity does not exceed 1.0
+    RH=min([RH,1.0])                     # ensure that the relatively humidity does not exceed 1.0
     ALV=ALV0+CPVMCL*TPC                     # calculate the latent heat of vaporization, dependant on temperature
     # calculate reversible total specific entropy per unit mass of dry air (E94, EQN. 4.5.9)
     S=(CPD+RP*CL)*np.log(TP)-RD*np.log(PP-EVP)+ALV*RP/TP-RP*RV*np.log(RH)
@@ -343,7 +198,8 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
     # loop over each level in the profile
     for j in range(N):
         
-        jmin=int(np.min([jmin,j]))
+        # jmin is the index of the lowest pressure level evaluated in the loop
+        jmin=int(min([jmin,j]))
     
         #
         #   *** Calculate Parcel quantities BELOW lifted condensation level   ***
@@ -377,7 +233,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
             NC=0
             TG=0
 
-            # loop until we converge or we break out
+            # loop until loop converges or bails out
             while ((np.abs(TGNEW-TG)) > 0.001):
             
                 # Parcel temperature and mixing ratio during this iteration
@@ -446,7 +302,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
     INB=0
     for j in range(N-1, jmin, -1):
         if (TVRDIF[j] > 0):
-            INB=np.max([INB,j])
+            INB=max([INB,j])
             
     # CHECK: Is the LNB higher than the surface? If not, return zero CAPE  
     if (INB==0):
@@ -457,7 +313,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
         # Return the uncoverged values
         return(CAPED,TOB,LNB,IFLAG)
     
-    # if we pass the check, continue with the CAPE calculation
+    # if check is passed, continue with the CAPE calculation
     else:
     
     #
@@ -466,16 +322,16 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
     #
         for j in range(jmin+1, INB+1, 1):
             PFAC=RD*(TVRDIF[j]+TVRDIF[j-1])*(P[j-1]-P[j])/(P[j]+P[j-1])
-            PA=PA+np.max([PFAC,0.0])
-            NA=NA-np.min([PFAC,0.0])
+            PA=PA+max([PFAC,0.0])
+            NA=NA-min([PFAC,0.0])
 
     #
     #   ***   Find area between parcel pressure and first level above it ***
     #
         PMA=(PP+P[jmin])
         PFAC=RD*(PP-P[jmin])/PMA
-        PA=PA+PFAC*np.max([TVRDIF[jmin],0.0])
-        NA=NA-PFAC*np.min([TVRDIF[jmin],0.0])
+        PA=PA+PFAC*max([TVRDIF[jmin],0.0])
+        NA=NA-PFAC*min([TVRDIF[jmin],0.0])
         
     #
     #   ***   Find residual positive area above INB and TO  ***
@@ -494,11 +350,162 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50):
     #   ***   Find CAPE  ***
     #            
         CAPED=PA+PAT-NA
-        CAPED=np.max([CAPED,0.0])
-        # set the flag to OK if we reached this far
+        CAPED=max([CAPED,0.0])
+        # set the flag to OK if procedure reached this point
         IFLAG=1
         # Return the calculated outputs to the above program level 
         return(CAPED,TOB,LNB,IFLAG)
 
     
     
+
+# define the function to calculate PI
+@nb.njit()
+def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8):
+    
+    # convert units
+    SSTK=SSTC+273.15 # SST in kelvin
+    T=T+273.15       # Temperature profile in kelvin
+    R=R*0.001        # Mixing ratio profile in gm/gm
+
+    # CHECK 1: do SSTs exceed 5C? If not, set IFL=0 and return missing PI
+    if (SSTC <= 5.0):
+        VMAX=np.nan
+        PMIN=np.nan
+        IFL=0
+        TO=np.nan
+        LNB=np.nan
+        return(VMAX,PMIN,IFL,TO,LNB)
+
+    # CHECK 2: do Temperature profiles exceed 100K? If not, set IFL=0 and return missing PI
+    if (np.min(T) <= 100):
+        VMAX=np.nan
+        PMIN=np.nan
+        IFL=0
+        TO=np.nan
+        LNB=np.nan
+        return(VMAX,PMIN,IFL,TO,LNB)
+
+    # Constants
+    NK=0         # level from which parcels lifted (first pressure level)
+    b=2.0        # Exponent for estimating azimuthal velocity in the eye, V=V_m(r/r_m)**b (Emanuel 1995, EQN. 25)
+    ptop=50      # Pressure below which sounding is ignored (hPa)
+    RD=287.04    # [J/kg.K] gas constant of dry air
+    EPS=RD/461.5 # [unitless] epsilon, the ratio of gas constants
+    
+    #
+    #   ***   Find environmental CAPE *** 
+    #
+    TP=T[NK]
+    RP=R[NK]
+    PP=P[NK]
+    result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop)
+    CAPEA = result[0]
+    IFLAG = result[3]
+    # if the CAPE function tripped a flag, set the output IFL to it
+    if (IFLAG != 1):
+        IFL=int(IFLAG)
+    
+    #
+    #   ***   Begin iteration to find mimimum pressure   ***
+    #
+    
+    # set loop counter and initial condition
+    NP=0         # loop counter
+    PM=970.0
+    PMOLD=PM     # initial condition from minimum pressure
+    PNEW=0.0     # initial condition from minimum pressure
+    IFL=int(1)   # Default flag for CAPE calculation
+
+    # loop until convergence or bail out
+    while (np.abs(PNEW-PMOLD) > 0.5):
+        
+        #
+        #   ***  Find CAPE at radius of maximum winds   ***
+        #
+        TP=T[NK]
+        PP=min([PM,1000.0])
+        RP=EPS*R[NK]*MSL/(PP*(EPS+R[NK])-R[NK]*MSL)
+        result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop)
+        CAPEM = result[0]
+        IFLAG = result[3]
+        # if the CAPE function tripped a flag, set the output IFL to it
+        if (IFLAG != 1):
+            IFL=int(IFLAG)
+        
+        #
+        #  ***  Find saturation CAPE at radius of maximum winds    ***
+        #  *** Note that TO and LNB are found with this assumption ***
+        #
+        TP=SSTK
+        PP=min([PM,1000.0])
+        # Initial saturated water vapor pressure
+        # from Clausius-Clapeyron relation/August-Roche-Magnus formula
+        ES0=6.112*np.exp(17.67*SSTC/(243.5+SSTC))
+        RP=0.622*ES0/(PP-ES0)
+        result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop)
+        CAPEMS, TOMS, LNBS, IFLAG = result
+        # if the CAPE function tripped a flag, set the output IFL to it
+        if (IFLAG != 1):
+            IFL=int(IFLAG)
+        # Store the outflow temperature and level of neutral bouyancy
+        TO=TOMS   
+        LNB=LNBS
+        # Calculate the proxy for TC efficiency (BE02, EQN. 1-3)
+        RAT=SSTK/TO
+        # If dissipative heating is "off", TC efficiency proxy is set to 1.0 (BE02, pg. 3)
+        if (diss_flag == 0):
+            RAT=1.0
+        
+        #
+        #  ***  Initial estimate of minimum pressure   ***
+        #
+        RS0=RP
+        # Surface Density Temperature (E94, EQN. 4.3.1 and 6.3.7)
+        TV0=T[0]*(1.+R[0]/EPS)/(1.+R[0])
+        # Average Surface Density Temperature, e.g. 1/2*[Tv(Tsfc)+Tv(sst)]
+        TVAV=0.5*(TV0+SSTK*(1.+RS0/EPS)/(1.+RS0))
+        # Converge toward CAPE*-CAPEM (BE02, EQN 3-4)
+        CAT=(CAPEM-CAPEA)+0.5*CKCD*RAT*(CAPEMS-CAPEM)
+        CAT=max([CAT,0.0])
+        # Iterate on pressure
+        PNEW=MSL*np.exp(-CAT/(RD*TVAV))
+        
+        #
+        #   ***  Test for convergence (setup for possible next while iteration)  ***
+        #
+        # store the previous step's pressure       
+        PMOLD=PM
+        # store the current step's pressure
+        PM=PNEW
+        # increase iteration count in the loop
+        NP=NP+1
+        
+        #
+        #   ***   If the routine does not converge, set IFL=0 and return missing PI   ***
+        #
+        if (NP > 200)  or (PM < 400):
+            VMAX=np.nan
+            PMIN=np.nan
+            IFL=0
+            TO=np.nan
+            LNB=np.nan
+            return(VMAX,PMIN,IFL,TO,LNB)
+    
+    # Once converged, set potential intensity at the radius of maximum winds
+    CATFAC=0.5*(1.+1/b)
+    CAT=(CAPEM-CAPEA)+CKCD*RAT*CATFAC*(CAPEMS-CAPEM)
+    CAT=max([CAT,0.0])
+    
+    # Calculate the minimum pressure at the radius of maximum winds
+    # BE02 EQN. 4
+    PMIN=MSL*np.exp(-CAT/(RD*TVAV))
+                 
+    # Calculate the potential intensity at the radius of maximum winds
+    # BE02 EQN. 3, reduced by some fraction (default 20%) to account for the reduction 
+    # of 10-m winds from gradient wind speeds (Emanuel 2000, Powell 1980)
+    FAC=max([0.0,(CAPEMS-CAPEM)])
+    VMAX=V_reduc*np.sqrt(CKCD*RAT*FAC)
+        
+    # Return the calculated outputs to the above program level
+    return(VMAX,PMIN,IFL,TO,LNB)
