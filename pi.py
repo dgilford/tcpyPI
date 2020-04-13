@@ -5,7 +5,7 @@
 # Gilford et al. (2017) -- https://journals.ametsoc.org/doi/full/10.1175/JCLI-D-16-0827.1
 # Gilford et al. (2019) -- https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1
 # 
-# Adapted for Python (NAME OF REPOSITORY) by Daniel Gilford, PhD (Rutgers U., daniel.gilford@rutgers.edu)
+# Adapted for Python (pypi) by Daniel Gilford, PhD (Rutgers U., daniel.gilford@rutgers.edu)
 # Last updated 4/1/2020
 # -----------------------------------------------------------------------------------
 #
@@ -18,6 +18,7 @@
 #   Revised 8/5/16 by D. Gilford to fix the "cape()" function output and include LNB
 #   Revised 10/3/16 by D. Gilford to set LNB to the pressure-weighted crossing of buoyancy from negative to positive (the zero-line)
 #     Converted to Python  4/1/2020
+# 
 # -----------------------------------------------------------------------------------
 # 
 #   ***    This function calculates the maximum wind speed         ***
