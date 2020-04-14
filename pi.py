@@ -6,7 +6,7 @@
 # Gilford et al. (2019) -- https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1
 # 
 # Adapted for Python (pypi) by Daniel Gilford, PhD (Rutgers U., daniel.gilford@rutgers.edu)
-# Last updated 4/13/2020
+# Last updated 4/14/2020
 # -----------------------------------------------------------------------------------
 #
 # Revision History:
@@ -66,17 +66,17 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=0):
 #
 #
 #  OUTPUT:  CAPED (J/kg) is Convective Available Potential Energy of an air parcel
-#           consistent with its parcel and environmental properties.
+#             consistent with its parcel and environmental properties.
 #
 #           TOB is the Temperature (K) at the level of neutral bouyancy 
-#           for the displaced air parcel
+#             for the displaced air parcel
 #
 #           LNB is the pressure level of neutral bouyancy (hPa) for the 
-#           displaced air parcel
+#             displaced air parcel
 #
 #           IFLAG is a flag where the value of 1 means OK; a value of 0
-#              indicates an improper sounding or parcel; a value of 2
-#              means that the routine failed to converge
+#             indicates an improper sounding or parcel; a value of 2
+#             means that the routine failed to converge
 #
 
     #
@@ -389,16 +389,16 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle
 #             on e.g. Wing et al. (2015)
 #
 #           ascent_flag: Adjustable constant integer (flag integer; 0 or 1) 
-#              for buoyancy of displaced parcels, where 
-#              0=Reversible ascent (default) and 1=Pseudo-adiabatic ascent
+#             for buoyancy of displaced parcels, where 
+#             0=Reversible ascent (default) and 1=Pseudo-adiabatic ascent
 #
 #           diss_flag: Adjustable switch integer (flag integer; 0 or 1)
-#              for whether dissipative heating is 1=allowed (default) or 0=disallowed.
-#              See Bister and Emanuel (1998) for inclusion of dissipative heating.
+#             for whether dissipative heating is 1=allowed (default) or 0=disallowed.
+#             See Bister and Emanuel (1998) for inclusion of dissipative heating.
 #
 #           V_reduc: Adjustable constant fraction (unitless fraction) 
-#              for reduction of gradient winds to 10-m winds see 
-#              Emanuel (2000) and Powell (1980). Default is 0.8
+#             for reduction of gradient winds to 10-m winds see 
+#             Emanuel (2000) and Powell (1980). Default is 0.8
 #
 #           miss_handle: Flag that determines how missing (NaN) values are handled in CAPE calculation
 #             If = 0 (BE02 default), NaN values in profile are ignored and PI is still calcuated
@@ -407,19 +407,19 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle
 #             then PI will automatically be set to missing (with IFLAG=3)
 #
 #  OUTPUT:  VMAX is the maximum surface wind speed (m/s)
-#              reduced to reflect surface drag via V_reduc
+#             reduced to reflect surface drag via V_reduc
 #
 #           PMIN is the minimum central pressure (hPa)
 #
 #           IFL is a flag: A value of 1 means OK; a value of 0
-#              indicates no convergence; a value of 2
-#              means that the CAPE routine failed to converge
+#             indicates no convergence; a value of 2
+#             means that the CAPE routine failed to converge
 #
 #           TO is the outflow temperature (K)
 #
 #           LNB is the level of neutral bouyancy where the outflow temperature
-#              is found (hPa), i.e. where buoyancy is actually equal to zero under the 
-#              condition of an air parcel that is saturated at sea level pressure
+#             is found (hPa), i.e. where buoyancy is actually equal to zero under the 
+#             condition of an air parcel that is saturated at sea level pressure
 #
     
     # convert units
