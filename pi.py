@@ -19,6 +19,7 @@
 #   Revised 10/3/16 by D. Gilford to set LNB to the pressure-weighted crossing of buoyancy from negative to positive (the zero-line)
 #     Converted to Python  04/2020
 #   Revised 4/10/2020 by D. Rothenberg (daniel@danielrothenberg.com) for Numba optimization
+#   Revised 4/13/2020 by D. Gilford to add new handling of missing profile data
 #
 # -----------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------
