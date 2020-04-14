@@ -42,7 +42,8 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=0):
 #       level of neutral buoyancy ("LNB") for the displaced parcel. IFLAG is a flag
 #       integer. If IFLAG = 1, routine is successful; if it is 0, routine did
 #       not run owing to improper sounding (e.g. no water vapor at parcel level).
-#       IFLAG=2 indicates that the routine did not converge.           
+#       IFLAG=2 indicates that the routine did not converge, IFLAG=3 indicates that
+#       the input profile had missing values.         
 #
 #  INPUT:   TP,RP,PP: floating point numbers of Parcel pressure (hPa), 
 #             temperature (K), and mixing ratio (gram/gram)
