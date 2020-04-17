@@ -14,7 +14,10 @@ The goals in developing and maintaining pyPI are to:
 If you have any questions, comments, or feedback, please [contact the developer](mailto:daniel.gilford@rutgers.edu) or open an [Issue](https://github.com/dgilford/pyPI/issues) in the repository.
 
 ## Citation
-pyPI was developed by [Daniel Gilford](https://github.com/dgilford) and has been archived on Zenodo with [![DOI](https://zenodo.org/badge/247725622.svg)](https://zenodo.org/badge/latestdoi/247725622).
+pyPI was developed by [Daniel Gilford](https://github.com/dgilford) and has been archived on Zenodo:
+
+[![DOI](https://zenodo.org/badge/247725622.svg)](https://zenodo.org/badge/latestdoi/247725622)
+
 If you use pyPI in your work, please include the citation:
 ```
 Gilford, D. M. 2020: pyPI: Potential Intensity Calculations in Python, v1.0, Zenodo, doi:10.5281/zenodo.3756006.
