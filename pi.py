@@ -5,14 +5,13 @@
 # Gilford et al. (2017) -- https://journals.ametsoc.org/doi/full/10.1175/JCLI-D-16-0827.1
 # Gilford et al. (2019) -- https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1
 # 
-# Adapted for Python (pypi) by Daniel Gilford, PhD (Rutgers U., daniel.gilford@rutgers.edu)
+# Adapted for Python (pyPI) by Daniel Gilford, PhD (Rutgers U., daniel.gilford@rutgers.edu)
 # Last updated 4/14/2020
 # -----------------------------------------------------------------------------------
 #
 # Revision History:
 #   Revised on 9/24/2005 by K. Emanuel to fix convergence problems at high pressure
 #     Converted to MATLAB  5/17/2008
-#
 #   Revised 7/20/15 by D. Gilford to output the LNB
 #   Revised 8/4/16 by D. Gilford to include lack of convergence if SST < 5C for TO/LNB
 #   Revised 8/5/16 by D. Gilford to fix the "cape()" function output and include LNB
