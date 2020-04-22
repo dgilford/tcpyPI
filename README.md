@@ -39,9 +39,9 @@ To get pyPI up and running on your system, clone the repository and ensure that 
 * [Numba](http://numba.pydata.org/) 0.48.0
 * [xarray](http://xarray.pydata.org/) 0.15.1
 
-### Python Implementation of "pcmin" (BE02 PI Calculator)
+### Python Implementation of "pc_min" (BE02 PI Calculator)
 
-[pi.py](pi.py) is the Python function which directly computes PI given atmospheric and ocean state variables (akin to the BE02 algorithm MATLAB implementation [pc_min.m](pc_min.m). Given input vector columns of environmental atmospheric temperatures (T) and mixing ratios (R) on a pressure grid (P), sea surface temperatures (SST), and mean sea-level pressures (MSL), the algorithm outputs potential intensity, the outflow level, the outflow temperature, and the minimum central pressure, and a flag that shows the status of the completed PI calculation. pyPI is an improvement on pcmin in that it handles missing values depending on user input flags.
+[pi.py](pi.py) is the Python function which directly computes PI given atmospheric and ocean state variables (akin to the BE02 algorithm MATLAB implementation [pc_min.m](pc_min.m)). Given input vector columns of environmental atmospheric temperatures (T) and mixing ratios (R) on a pressure grid (P), sea surface temperatures (SST), and mean sea-level pressures (MSL), the algorithm outputs potential intensity, the outflow level, the outflow temperature, and the minimum central pressure, and a flag that shows the status of the completed PI calculation. pyPI is an improvement on pcmin in that it handles missing values depending on user input flags.
 
 Users who want to apply the PI calculation to a set of local environmental conditions need only to download pi.py, organize their data appropriately, and call the function to return outputs, e.g.:
 ```
@@ -83,7 +83,7 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 * **Daniel M. Gilford, PhD** - *Development & Maintenance* - [GitHub](https://github.com/dgilford)
 
 ### Contributor(s)
-* **Daniel Rothenberg, PhD** - *Numba Optimization* - [GitHub](https://github.com/darothen)
+* **Daniel Rothenberg, PhD** - *Numba Optimization & Sample Code* - [GitHub](https://github.com/darothen)
 
 ## License
 
