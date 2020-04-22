@@ -412,7 +412,9 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle
 #
 #           IFL is a flag: A value of 1 means OK; a value of 0
 #             indicates no convergence; a value of 2
-#             means that the CAPE routine failed to converge
+#             means that the CAPE routine failed to converge;
+#             a value of 3  means the CAPE routine failed due to
+#             missing data in the inputs
 #
 #           TO is the outflow temperature (K)
 #
