@@ -8,9 +8,10 @@
 close all
 clear
 % add paths to run the code
-addpath('~/pyPI/')
-addpath('~/pyPI/data/')
-addpath('~/pyPI/data/gse17_mat_files/')
+path=pwd;
+addpath(strcat(path,'/..'))
+addpath(strcat(path,'/../data/'))
+addpath(strcat(path,'/../data/gse17_mat_files/'))
 
 %% Load Data and Prep for PI calculation
 
