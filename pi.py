@@ -30,9 +30,9 @@ import numba as nb
 
 # define the function to calculate CAPE
 @nb.njit()
-def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=0):
+def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
 
-#     function [CAPED,TOB,LNB,IFLAG]= cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=0)
+#     function [CAPED,TOB,LNB,IFLAG]= cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1)
 #
 #       This function calculates the CAPE of a parcel given parcel pressure PP (hPa), 
 #       temperature TP (K) and mixing ratio RP (gram/gram) and given a sounding
@@ -59,7 +59,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=0):
 #
 #           miss_handle: Flag that determines how missing (NaN) values are handled.
 #             If = 0 (BE02 default), NaN values in profile are ignored and PI is still calcuated
-#             If = 1, given NaN values PI will be set to missing (with IFLAG=3)
+#             If = 1 (pyPI default), given NaN values PI will be set to missing (with IFLAG=3)
 #             NOTE: If any missing values are between the lowest valid level and ptop
 #             then PI will automatically be set to missing (with IFLAG=3)
 #
@@ -298,10 +298,9 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=0):
     if (INB==0):
         CAPED=0
         TOB=T[0]
-#         LNB=P[0]
+        LNB=P[INB]
 #         TOB=np.nan
         LNB=0
-        IFLAG=2
         # Return the unconverged values
         return(CAPED,TOB,LNB,IFLAG)
     
@@ -353,7 +352,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=0):
 
 # define the function to calculate PI
 @nb.njit()
-def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle=0):
+def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle=1):
     
 #     function [VMAX,PMIN,IFL,TO,LNB] = pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle=0)
 #
