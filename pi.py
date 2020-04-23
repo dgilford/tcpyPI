@@ -87,7 +87,6 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=0):
     first_valid=np.where(valid_i)[0][0]
     # Are there missing values? If so, assess according to flag
     if (np.sum(valid_i) != len(P)):
-        ('stop here')
         # if not allowed, set IFLAG=3 and return missing CAPE
         if (miss_handle != 0):
             CAPED=np.nan

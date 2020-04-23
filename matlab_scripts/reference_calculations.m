@@ -7,19 +7,22 @@
 % setup
 close all
 clear
+% add paths to run the code
+addpath('~/pyPI/')
+addpath('~/pyPI/data/')
+addpath('~/pyPI/data/gse17_mat_files/')
 
 %% Load Data and Prep for PI calculation
 
-% define the data location and filenames
-dat_dir='../data/';
-slp_file=strcat(dat_dir,'merra2_slp_2004_monthly_2.5x2.5.mat');
-T_file=strcat(dat_dir,'merra2_T_2004_monthly_2.5x2.5.mat');
-TS_file=strcat(dat_dir,'merra2_TS_2004_monthly_2.5x2.5.mat');
-q_file=strcat(dat_dir,'merra2_q_2004_monthly_2.5x2.5.mat');
+% define the data filenames
+slp_file='merra2_slp_2004_monthly_2.5x2.5.mat';
+T_file='merra2_T_2004_monthly_2.5x2.5.mat';
+TS_file='merra2_TS_2004_monthly_2.5x2.5.mat';
+q_file='merra2_q_2004_monthly_2.5x2.5.mat';
 
 % load the land-sea mask
-lsm_shift=ncread(strcat(dat_dir,'lsmask_2.5x2.5.nc'),'lsm');
-lsm_lon=ncread(strcat(dat_dir,'lsmask_2.5x2.5.nc'),'longitude');
+lsm_shift=ncread('lsmask_2.5x2.5.nc','lsm');
+lsm_lon=ncread('lsmask_2.5x2.5.nc','longitude');
 % shift the land-sea mask
 lsm_lon=lsm_lon-180;
 minlon=find(lsm_lon==min(abs(lsm_lon)));
@@ -131,7 +134,7 @@ contourf(lon,lat,nanmean(VMAX,3)')
 hold on
     colorbar
     
-%% save out the variables for use later
+%% save out the variables for use in pyPI
 
 % choose name to save out, delete if it already exists
 if isfile('../data/sample_data.nc')
