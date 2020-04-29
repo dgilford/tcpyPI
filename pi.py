@@ -11,12 +11,13 @@
 #
 # Revision History:
 #   Revised on 9/24/2005 by K. Emanuel to fix convergence problems at high pressure
-#     Converted to MATLAB  5/17/2008
+#     --Converted to MATLAB  5/17/2008
 #   Revised 7/20/15 by D. Gilford to output the LNB
 #   Revised 8/4/16 by D. Gilford to include lack of convergence if SST < 5C for TO/LNB
 #   Revised 8/5/16 by D. Gilford to fix the "cape()" function output and include LNB
 #   Revised 10/3/16 by D. Gilford to set LNB to the pressure-weighted crossing of buoyancy from negative to positive (the zero-line)
-#     Converted to Python  04/2020
+#   Revised 1/7/2017 by Luke Davis to fix and improper definition of JMIN, which should be the lowest profile level at or above the parcel level in the calculation of CAPE. Kerry is grateful to Luke and to Tim Merlis for pointing out this error. In practice, the error was usually less than 1 hPa in central pressure.    
+#     --Converted to Python  04/2020
 #   Revised 4/10/2020 by D. Rothenberg (daniel@danielrothenberg.com) for Numba optimization
 #   Revised 4/13/2020 by D. Gilford to add new handling of missing profile data
 #
@@ -209,6 +210,8 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
         #   *** Calculate Parcel quantities ABOVE lifted condensation level   ***
         # 
         else:
+            
+            # Initial default values before loop
             TGNEW=T[j]
             TJC=T[j]-273.15
             ES=6.112*np.exp(17.67*TJC/(243.5+TJC))
@@ -248,8 +251,10 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
                 # convergence speed (AP, step in entropy fraction) varies as a function of 
                 # number of iterations
                 if (NC < 3):
+                    # converge slowly with a smaller step
                     AP=0.3
                 else:
+                    # speed the process with a larger step when nearing convergence
                     AP=1.0
                 # find the new temperature in the iteration
                 TGNEW=TG+AP*(S-SG)/SL
