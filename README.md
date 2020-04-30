@@ -1,4 +1,7 @@
 # pyPI: Potential Intensity Calculations in Python
+<p align="center">
+<img src="./figures/readme_image.png" alt="" width="720" height="480">
+</p>
 
 pyPI is a set of scripts and notebooks that compute and validate tropical cyclone (TC) potential intensity (PI) calculations in Python.
 It is a port of the [Bister and Emanuel 2002](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2001JD000776) algorithm (hereafter BE02) which was originally written in FORTRAN---and then MATLAB---by Prof. Kerry Emanuel (MIT).
