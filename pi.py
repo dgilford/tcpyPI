@@ -525,7 +525,7 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle
             RAT=1.0
         
         #
-        #  ***  Initial estimate of minimum pressure   ***
+        #  ***  Initial estimate of pressure at the radius of maximum winds  ***
         #
         RS0=RP
         # Surface Density Temperature (E94, EQN. 4.3.1 and 6.3.7)
@@ -564,7 +564,7 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle
     CAT=(CAPEM-CAPEA)+CKCD*RAT*CATFAC*(CAPEMS-CAPEM)
     CAT=max([CAT,0.0])
     
-    # Calculate the minimum pressure at the radius of maximum winds
+    # Calculate the minimum pressure at the eye of the storm
     # BE02 EQN. 4
     PMIN=MSL*np.exp(-CAT/(RD*TVAV))
                  
