@@ -28,8 +28,8 @@ Gilford, D. M. 2020: pyPI: Potential Intensity Calculations in Python, v1.0, Zen
 
 ## Full pyPI Description
 
-Please read [pyPI_description.pdf](pyPI_description.pdf) for a full overview and details on pyPI.
-The description includes the pyPI background, a PI computation derivation, validation against the commonly-used MATLAB algorithm (pcmin), and a set of sample analyses.
+Please read [pyPI_Documentation.pdf](pyPI_Documentation.pdf) for a full overview and details on pyPI.
+The description includes the pyPI background, a PI computation derivation, validation against the commonly-used MATLAB algorithm (pcmin), and a set of sample analyses. *As of 5/5/2020, the provided documentation is only draft. It is not a fully-reviewed release.*
 
 ## Getting Started
 
