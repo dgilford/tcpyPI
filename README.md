@@ -90,7 +90,7 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 
 ## License
 
-This project is licensed under a modified MIT License - see the [License.md](License.md) file for details
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details
 
 ## Acknowledgments
 
