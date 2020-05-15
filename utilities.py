@@ -4,6 +4,7 @@
 
 # import numpy to use in functions
 import numpy as np
+import constants
 
 # ---------------------- Longitude conversion ---------------------- %
 
@@ -15,6 +16,62 @@ def convert_lon_to180(lon360):
 def convert_lon_to360(lon180):
     lon360 = lon180 % 360
     return(lon360)
+
+
+# ---------------------- Thermodynamic Calculations ---------------------- %
+
+# Saturated water vapor pressure
+# from Clausius-Clapeyron relation/August-Roche-Magnus formula
+# Input temperature (TC) in Celsius
+# Output saturation vapor pressure in hPa
+def es_cc(TC):
+    return 6.112*np.exp(17.67*TC/(243.5+TC))
+
+# Latent heat of vaporization, as a function of temperature
+# Input temperature (TC) in Celsius
+# Output Latent heat of vaporization in J/kg
+def Lv(TC):
+    return constants.ALV0+constants.CPVMCL*TC
+
+# Parcel vapor pressure (hPa)
+# Input mixing ratio (R) in gram/gram
+# Input pressure (P) in hPA
+def ev(R,P):
+    return R*P/(constants.EPS+R)
+
+# Total specific Entropy per unit mass of dry air (E94, EQN. 4.5.9)
+# Input temperature (T) in kelvin
+# Input mixing ratio (R) in gram/gram
+# Input pressure (P) in hPA
+def entropy_S(T,R,P):
+    EV=ev(R,P)
+    ES=es_cc(T-273.15)
+    RH=min([EV/ES,1.0])
+    ALV=Lv(T-273.15)
+    S=(constants.CPD+R*constants.CL)*np.log(T)-constants.RD*np.log(P-EV)+ALV*R/T-R*constants.RV*np.log(RH)
+    return(S)
+
+# Saturated total specific Entropy per unit mass of dry air (E94, EQN. 4.5.9)
+# Input temperature (T) in kelvin
+# Input mixing ratio (R) in gram/gram
+# Input pressure (P) in hPA
+def entropy_Sstar(T,R,P):
+    EV=ev(R,P)
+    ALV=Lv(T-273.15)
+    S=(constants.CPD+R*constants.CL)*np.log(T)-constants.RD*np.log(P-EV)+ALV*R/T
+    return(S)
+
+# Density temperature in K
+# Input temperature (T) in kelvin
+# Input mixing ratio (R) in gram/gram
+def Trho(T,R):
+    return T*(1.+R/constants.EPS)/(1.+R)
+
+# Empirical pLCL
+# Input parcel pressure (PP), temperature (TP), and relative humidity
+# Output lifting condensation level pressure
+def e_pLCL(TP,RH,PP):
+    return PP*(RH**(TP/(constants.A-constants.B*RH-TP)))
 
 # ---------------------- Analyses ---------------------- %
 
