@@ -6,7 +6,7 @@
 # Gilford et al. (2019) -- https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1
 # 
 # Adapted for Python (pyPI) by Daniel Gilford, PhD (Rutgers U., daniel.gilford@rutgers.edu)
-# Last updated 4/14/2020
+# Last updated 5/15/20
 # -----------------------------------------------------------------------------------
 #
 # Revision History:
@@ -20,6 +20,7 @@
 #     --Converted to Python  04/2020
 #   Revised 4/10/2020 by D. Rothenberg (daniel@danielrothenberg.com) for Numba optimization
 #   Revised 4/13/2020 by D. Gilford to add new handling of missing profile data
+#   Revised 5/15/2020 by D. Gilford for auxilary files
 #
 # -----------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------
@@ -28,6 +29,8 @@
 # import required packages
 import numpy as np
 import numba as nb
+import constants
+import utilities
 
 # define the function to calculate CAPE
 @nb.njit()
@@ -135,26 +138,11 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
         return(CAPED,TOB,LNB,IFLAG)
     
     #
-    #   ***  Define constants   ***
-    #
-
-    # Thermodynamic Constants
-    CPD=1005.7       # [J/kg.K] Specific heat of dry air at constant pressure
-    CPV=1870.0       # [J/kg.K] Specific heat of water vapor at constant pressure
-    #CL=4190.0       # [J/kg.K] Specific heat of liquid water
-    CL=2500.0        # [J/kg.K] Modified specific heat of liquid water
-    CPVMCL=CPV-CL
-    RV=461.5         # [J/kg.K] gas constant of water vapor
-    RD=287.04        # [J/kg.K] gas constant of dry air
-    EPS=RD/RV        # [unitless] epsilon, the ratio of gas constants
-    ALV0=2.501e6     # [J/kg] latent heat of vaporization at 0 degrees C
-    
-    #
     #  ***  Define various parcel quantities, including reversible   ***
     #  ***                       entropy, S                          ***
     #                         
     TPC=TP-273.15                           # Parcel temperature in Celsius
-    ESP=6.112*np.exp(17.67*TPC/(243.5+TPC)) # Parcel's saturated vapor pressure
+    ESP=utilities.es_cc(TPC)                # Parcel's saturated vapor pressure
     EVP=RP*PP/(EPS+RP)                      # Parcel's partial vapor pressure
     RH=EVP/ESP                              # Parcel's relative humidity
     RH=min([RH,1.0])                     # ensure that the relatively humidity does not exceed 1.0
@@ -171,8 +159,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
     #   see https://journals.ametsoc.org/doi/pdf/10.1175/JAS-D-17-0102.1
     #   and Python PLCL code at http://romps.berkeley.edu/papers/pubdata/2016/lcl/lcl.py
     #
-    CHI=TP/(1669.0-122.0*RH-TP)
-    PLCL=PP*(RH**CHI)
+    PLCL=utilities.e_pLCL(TP,RH,PP)
     
     # Initial default values before loop
     CAPED=0
@@ -201,8 +188,8 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
             # Parcel Mixing ratio
             RG=RP
             # Parcel and Environmental Density Temperatures at this pressure (E94, EQN. 4.3.1 and 6.3.7)
-            TLVR=TG*(1.+RG/EPS)/(1.+RG)
-            TVENV=T[j]*(1.+R[j]/EPS)/(1+R[j])
+            TLVR=utilities.Trho(TG,RG)
+            TVENV=utilities.Trho(T[j],R[j])
             # Bouyancy of the parcel in the environment (Proxy of E94, EQN. 6.1.5)
             TVRDIF[j,]=TLVR-TVENV
             
@@ -214,8 +201,8 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
             # Initial default values before loop
             TGNEW=T[j]
             TJC=T[j]-273.15
-            ES=6.112*np.exp(17.67*TJC/(243.5+TJC))
-            RG=EPS*ES/(P[j]-ES)
+            ES=utilities.es_cc(TJC)
+            RG=utilities.rv(ES,P[j])
             
             #
             #   ***  Iteratively calculate lifted parcel temperature and mixing   ***
@@ -232,11 +219,11 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
                 # Parcel temperature and mixing ratio during this iteration
                 TG=TGNEW
                 TC=TG-273.15
-                ENEW=6.112*np.exp(17.67*TC/(243.5+TC))
-                RG=EPS*ENEW/(P[j]-ENEW)
+                ENEW=utilities.es_cc(TC)
+                RG=utilities.rv(ENEW,P[j])
                 
                 # increase iteration count in the loop
-                NC=NC+1
+                NC += 1
                 
                 #
                 #   ***  Calculate estimates of the rates of change of the entropy    ***

@@ -39,6 +39,12 @@ def Lv(TC):
 def ev(R,P):
     return R*P/(constants.EPS+R)
 
+# Parcel mixing ratio (gram/gram)
+# Input vapor pressure (E) in hPa
+# Input pressure (P) in hPA
+def rv(E,P):
+    return EPS*E/(P-E)
+
 # Total specific Entropy per unit mass of dry air (E94, EQN. 4.5.9)
 # Input temperature (T) in kelvin
 # Input mixing ratio (R) in gram/gram
