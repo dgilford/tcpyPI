@@ -20,7 +20,7 @@
 #     --Converted to Python  04/2020
 #   Revised 4/10/2020 by D. Rothenberg (daniel@danielrothenberg.com) for Numba optimization
 #   Revised 4/13/2020 by D. Gilford to add new handling of missing profile data
-#   Revised 5/15/2020 by D. Gilford for auxilary files
+#   Revised 6/17/2020 by D. Gilford for auxilary files
 #
 # -----------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------
@@ -56,7 +56,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
 #             containing environmental pressure (hPa), temperature (K),
 #             and mixing ratio (gram/gram) profiles.
 #
-#           ascent_flag: Adjustable constant integer for buoyancy of displaced  
+#           ascent_flag: Adjustable constant fraction for buoyancy of displaced  
 #             parcels, where 0=Reversible ascent;  1=Pseudo-adiabatic ascent
 #
 #           ptop: Pressure below which sounding is ignored (hPa)
@@ -377,7 +377,7 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle
 #             on CK/CD is found in Emanuel (2003). Default is 0.9 based
 #             on e.g. Wing et al. (2015)
 #
-#           ascent_flag: Adjustable constant integer (flag integer; 0 or 1) 
+#           ascent_flag: Adjustable constant fraction (unitless fraction) 
 #             for buoyancy of displaced parcels, where 
 #             0=Reversible ascent (default) and 1=Pseudo-adiabatic ascent
 #

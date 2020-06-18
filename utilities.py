@@ -43,7 +43,7 @@ def ev(R,P):
 # Input vapor pressure (E) in hPa
 # Input pressure (P) in hPA
 def rv(E,P):
-    return EPS*E/(P-E)
+    return constants.EPS*E/(P-E)
 
 # Total specific Entropy per unit mass of dry air (E94, EQN. 4.5.9)
 # Input temperature (T) in kelvin
