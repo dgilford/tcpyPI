@@ -28,8 +28,8 @@ Gilford, D. M. 2020: pyPI: Potential Intensity Calculations in Python, v1.0, Zen
 
 ## Full pyPI Description
 
-Please read [pyPI_Documentation.pdf](pyPI_Documentation.pdf) for a full overview and details on pyPI.
-The description includes the pyPI background, a PI computation derivation, validation against the commonly-used MATLAB algorithm (pcmin), and a set of sample analyses. *As of 5/5/2020, the provided documentation is only a draft. It is not a fully-reviewed release.*
+Please read [pyPI_Documentation_v1.2.pdf](pyPI_Documentation_v1.2.pdf) for a full overview and details on pyPI.
+The description includes the pyPI background, a PI computation derivation, validation against the commonly-used MATLAB algorithm (pcmin), and a set of sample analyses.
 
 ## Getting Started
 
@@ -80,6 +80,7 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 * **[utilities.py](utilities.py)** - Set of functions used in the pyPI codebase
 * **[reference_calculations.m](./matlab_scripts/reference_calculations.m)** - Script used to generate sample BE02 MATLAB outout data from original MERRA2 files monthly mean; included for posterity and transperancy
 * **[pc_min.m](pc_min.m)** - Original BE02 algorithm from MATLAB, adapted and used to produce analyses of Gilford et al. ([2017](https://journals.ametsoc.org/doi/abs/10.1175/JCLI-D-16-0827.1); [2019](https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1))
+* **[clock_pypi.ipynb](./notebooks/clock_pypi.ipynb)** - Notebook estimating the time it takes to run pyPI on a laptop
 
 ## Author
 
@@ -94,5 +95,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-* Prof. Kerry Emanuel (MIT) - Development of potential intensity theory; encouragement and permission to pursue Python implementation
-* Prof. Susan Solomon (MIT), Prof. Paul O'Gorman (MIT), Prof. Allison Wing (FSU) - Helpful conversations, advice, and suggestions on TC PI research
+* Kerry Emanuel (MIT) - Development of potential intensity theory; encouragement and permission to pursue Python implementation
+* Susan Solomon (MIT), Paul O'Gorman (MIT), Allison Wing (FSU) - Helpful conversations, advice, and suggestions on TC PI research
+* Dan Chavas (Purdue), Jonathan Lin (MIT), Raphael Rousseau-Rizzi (MIT) - Feedback on pyPI code and documentation
