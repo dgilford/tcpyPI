@@ -6,6 +6,7 @@
 # Gilford et al. (2019) -- https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1
 # 
 # Adapted for Python (pyPI) by Daniel Gilford, PhD (Rutgers U., daniel.gilford@rutgers.edu)
+=======
 # Full pyPI documentation, module validation, and sample code provided at:
 # ********************** https://github.com/dgilford/pyPI ***************************
 # Last updated 6/18/2020, v1.2
@@ -22,6 +23,8 @@
 #     --Converted to Python  04/2020
 #   Revised 4/10/2020 by D. Rothenberg (daniel@danielrothenberg.com) for Numba optimization
 #   Revised 4/13/2020 by D. Gilford to add new handling of missing profile data
+#   Revised 6/17/2020 by D. Gilford for auxilary files
+#   Revised 8/5/2020 by D. Gilford for auxilary files
 #
 # -----------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------
@@ -30,6 +33,8 @@
 # import required packages
 import numpy as np
 import numba as nb
+import constants
+import utilities
 
 # define the function to calculate CAPE
 @nb.njit()
@@ -53,9 +58,12 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
 #
 #           T,R,P: One-dimensional arrays 
 #             containing environmental pressure (hPa), temperature (K),
-#             and mixing ratio (gram/gram) profiles.
+#             and mixing ratio (gram/gram) profiles. The arrays MUST be
+#             arranged so that the lowest index corresponds
+#             to the lowest model level, with increasing index
+#             corresponding to decreasing pressure.
 #
-#           ascent_flag: Adjustable constant integer for buoyancy of displaced  
+#           ascent_flag: Adjustable constant fraction for buoyancy of displaced  
 #             parcels, where 0=Reversible ascent;  1=Pseudo-adiabatic ascent
 #
 #           ptop: Pressure below which sounding is ignored (hPa)
@@ -137,32 +145,17 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
         return(CAPED,TOB,LNB,IFLAG)
     
     #
-    #   ***  Define constants   ***
-    #
-
-    # Thermodynamic Constants
-    CPD=1005.7       # [J/kg.K] Specific heat of dry air at constant pressure
-    CPV=1870.0       # [J/kg.K] Specific heat of water vapor at constant pressure
-    #CL=4190.0       # [J/kg.K] Specific heat of liquid water
-    CL=2500.0        # [J/kg.K] Modified specific heat of liquid water
-    CPVMCL=CPV-CL
-    RV=461.5         # [J/kg.K] gas constant of water vapor
-    RD=287.04        # [J/kg.K] gas constant of dry air
-    EPS=RD/RV        # [unitless] epsilon, the ratio of gas constants
-    ALV0=2.501e6     # [J/kg] latent heat of vaporization at 0 degrees C
-    
-    #
     #  ***  Define various parcel quantities, including reversible   ***
     #  ***                       entropy, S                          ***
     #                         
-    TPC=TP-273.15                           # Parcel temperature in Celsius
-    ESP=6.112*np.exp(17.67*TPC/(243.5+TPC)) # Parcel's saturated vapor pressure
-    EVP=RP*PP/(EPS+RP)                      # Parcel's partial vapor pressure
+    TPC=utilities.T_ktoC(TP)                 # Parcel temperature in Celsius
+    ESP=utilities.es_cc(TPC)                # Parcel's saturated vapor pressure
+    EVP=utilities.ev(RP,PP)                 # Parcel's partial vapor pressure
     RH=EVP/ESP                              # Parcel's relative humidity
-    RH=min([RH,1.0])                     # ensure that the relatively humidity does not exceed 1.0
-    ALV=ALV0+CPVMCL*TPC                     # calculate the latent heat of vaporization, dependant on temperature
+    RH=min([RH,1.0])                        # ensure that the relatively humidity does not exceed 1.0
     # calculate reversible total specific entropy per unit mass of dry air (E94, EQN. 4.5.9)
-    S=(CPD+RP*CL)*np.log(TP)-RD*np.log(PP-EVP)+ALV*RP/TP-RP*RV*np.log(RH)
+    S=utilities.entropy_S(TP,RP,PP)
+    
     
     #
     #   ***  Estimate lifted condensation level pressure, PLCL   ***
@@ -173,8 +166,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
     #   see https://journals.ametsoc.org/doi/pdf/10.1175/JAS-D-17-0102.1
     #   and Python PLCL code at http://romps.berkeley.edu/papers/pubdata/2016/lcl/lcl.py
     #
-    CHI=TP/(1669.0-122.0*RH-TP)
-    PLCL=PP*(RH**CHI)
+    PLCL=utilities.e_pLCL(TP,RH,PP)
     
     # Initial default values before loop
     CAPED=0
@@ -199,12 +191,12 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
         #
         if (P[j] >= PLCL):
             # Parcel temperature at this pressure
-            TG=TP*(P[j]/PP)**(RD/CPD)
+            TG=TP*(P[j]/PP)**(constants.RD/constants.CPD)
             # Parcel Mixing ratio
             RG=RP
             # Parcel and Environmental Density Temperatures at this pressure (E94, EQN. 4.3.1 and 6.3.7)
-            TLVR=TG*(1.+RG/EPS)/(1.+RG)
-            TVENV=T[j]*(1.+R[j]/EPS)/(1+R[j])
+            TLVR=utilities.Trho(TG,RG,RG)
+            TVENV=utilities.Trho(T[j],R[j],R[j])
             # Bouyancy of the parcel in the environment (Proxy of E94, EQN. 6.1.5)
             TVRDIF[j,]=TLVR-TVENV
             
@@ -215,9 +207,9 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
             
             # Initial default values before loop
             TGNEW=T[j]
-            TJC=T[j]-273.15
-            ES=6.112*np.exp(17.67*TJC/(243.5+TJC))
-            RG=EPS*ES/(P[j]-ES)
+            TJC=utilities.T_ktoC(T[j])
+            ES=utilities.es_cc(TJC)
+            RG=utilities.rv(ES,P[j])
             
             #
             #   ***  Iteratively calculate lifted parcel temperature and mixing   ***
@@ -233,23 +225,25 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
             
                 # Parcel temperature and mixing ratio during this iteration
                 TG=TGNEW
-                TC=TG-273.15
-                ENEW=6.112*np.exp(17.67*TC/(243.5+TC))
-                RG=EPS*ENEW/(P[j]-ENEW)
+                TC=utilities.T_ktoC(TG)
+                ENEW=utilities.es_cc(TC)
+                RG=utilities.rv(ENEW,P[j])
                 
                 # increase iteration count in the loop
-                NC=NC+1
+                NC += 1
                 
                 #
                 #   ***  Calculate estimates of the rates of change of the entropy    ***
                 #   ***           with temperature at constant pressure               ***
                 #
 
-                ALV=ALV0+CPVMCL*TC
-                SL=(CPD+RP*CL+ALV*ALV*RG/(RV*TG*TG))/TG
-                EM=RG*P[j]/(EPS+RG)
-                # (last term vanishes with saturation, i.e. RH=1)
-                SG=(CPD+RP*CL)*np.log(TG)-RD*np.log(P[j]-EM)+ALV*RG/TG
+                ALV=utilities.Lv(TC)
+                # calculate the rate of change of entropy with temperature, s_ell
+                SL=(constants.CPD+RP*constants.CL+ALV*ALV*RG/(constants.RV*TG*TG))/TG
+                EM=utilities.ev(RG,P[j])
+                # calculate the saturated entropy, s_k, noting r_T=RP and
+                # the last term vanishes with saturation, i.e. RH=1
+                SG=(constants.CPD+RP*constants.CL)*np.log(TG)-constants.RD*np.log(P[j]-EM)+ALV*RG/TG
                 # convergence speed (AP, step in entropy fraction) varies as a function of 
                 # number of iterations
                 if (NC < 3):
@@ -278,11 +272,11 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
             #
             #   *** Calculate buoyancy   ***
             #
-            # Parcel Mixing ratio: either reversible (ascent_flag=0) or pseudo-adiabatic (ascent_flag=1)
+            # Parcel total mixing ratio: either reversible (ascent_flag=0) or pseudo-adiabatic (ascent_flag=1)
             RMEAN=ascent_flag*RG+(1-ascent_flag)*RP
             # Parcel and Environmental Density Temperatures at this pressure (E94, EQN. 4.3.1 and 6.3.7)
-            TLVR=TG*(1.+RG/EPS)/(1.+RMEAN)
-            TENV=T[j]*(1.+R[j]/EPS)/(1.+R[j])
+            TLVR=utilities.Trho(TG,RMEAN,RG)
+            TENV=utilities.Trho(T[j],R[j],R[j])
             # Bouyancy of the parcel in the environment (Proxy of E94, EQN. 6.1.5)
             TVRDIF[j,]=TLVR-TENV
             
@@ -319,7 +313,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
     #                  via E94, EQN. 6.3.6)
     #
         for j in range(jmin+1, INB+1, 1):
-            PFAC=RD*(TVRDIF[j]+TVRDIF[j-1])*(P[j-1]-P[j])/(P[j]+P[j-1])
+            PFAC=constants.RD*(TVRDIF[j]+TVRDIF[j-1])*(P[j-1]-P[j])/(P[j]+P[j-1])
             PA=PA+max([PFAC,0.0])
             NA=NA-min([PFAC,0.0])
 
@@ -327,7 +321,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
     #   ***   Find area between parcel pressure and first level above it ***
     #
         PMA=(PP+P[jmin])
-        PFAC=RD*(PP-P[jmin])/PMA
+        PFAC=constants.RD*(PP-P[jmin])/PMA
         PA=PA+PFAC*max([TVRDIF[jmin],0.0])
         NA=NA-PFAC*min([TVRDIF[jmin],0.0])
         
@@ -341,7 +335,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
         if (INB < nlvl-1):
             PINB=(P[INB+1]*TVRDIF[INB]-P[INB]*TVRDIF[INB+1])/(TVRDIF[INB]-TVRDIF[INB+1])
             LNB=PINB
-            PAT=RD*TVRDIF[INB]*(P[INB]-PINB)/(P[INB]+PINB)
+            PAT=constants.RD*TVRDIF[INB]*(P[INB]-PINB)/(P[INB]+PINB)
             TOB=(T[INB]*(PINB-P[INB+1])+T[INB+1]*(P[INB]-PINB))/(P[INB]-P[INB+1])
     
     #
@@ -355,13 +349,13 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
         return(CAPED,TOB,LNB,IFLAG)
 
     
-    
+
 
 # define the function to calculate PI
 @nb.njit()
-def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle=1):
+def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,miss_handle=1):
     
-#     function [VMAX,PMIN,IFL,TO,LNB] = pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle=0)
+#     function [VMAX,PMIN,IFL,TO,OTL] = pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle=0)
 #
 #   ***    This function calculates the maximum wind speed         ***
 #   ***             and mimimum central pressure                   ***
@@ -375,7 +369,7 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle
 #
 #           MSL: Mean Sea level pressure (hPa)
 #
-#           P,T,R: One-dimensional arrays 
+#           P,TC,R: One-dimensional arrays 
 #             containing pressure (hPa), temperature (C),
 #             and mixing ratio (g/kg). The arrays MUST be
 #             arranged so that the lowest index corresponds
@@ -392,7 +386,7 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle
 #             on CK/CD is found in Emanuel (2003). Default is 0.9 based
 #             on e.g. Wing et al. (2015)
 #
-#           ascent_flag: Adjustable constant integer (flag integer; 0 or 1) 
+#           ascent_flag: Adjustable constant fraction (unitless fraction) 
 #             for buoyancy of displaced parcels, where 
 #             0=Reversible ascent (default) and 1=Pseudo-adiabatic ascent
 #
@@ -403,6 +397,8 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle
 #           V_reduc: Adjustable constant fraction (unitless fraction) 
 #             for reduction of gradient winds to 10-m winds see 
 #             Emanuel (2000) and Powell (1980). Default is 0.8
+#
+#           ptop: Pressure below which sounding is ignored (hPa)
 #
 #           miss_handle: Flag that determines how missing (NaN) values are handled in CAPE calculation
 #             If = 0 (BE02 default), NaN values in profile are ignored and PI is still calcuated
@@ -423,15 +419,15 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle
 #
 #           TO is the outflow temperature (K)
 #
-#           LNB is the level of neutral bouyancy where the outflow temperature
-#             is found (hPa), i.e. where buoyancy is actually equal to zero under the 
-#             condition of an air parcel that is saturated at sea level pressure
+#           OTL is the outflow temperature level (hPa), defined as the level of neutral bouyancy 
+#             where the outflow temperature is found, i.e. where buoyancy is actually equal 
+#             to zero under the condition of an air parcel that is saturated at sea level pressure
 #
-    
+
     # convert units
-    SSTK=SSTC+273.15 # SST in kelvin
-    T=T+273.15       # Temperature profile in kelvin
-    R=R*0.001        # Mixing ratio profile in gm/gm
+    SSTK=utilities.T_Ctok(SSTC) # SST in kelvin
+    T=utilities.T_Ctok(TC)      # Temperature profile in kelvin
+    R=R*0.001                   # Mixing ratio profile in g/g
 
     # CHECK 1: do SSTs exceed 5C? If not, set IFL=0 and return missing PI
     if (SSTC <= 5.0):
@@ -439,8 +435,8 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle
         PMIN=np.nan
         IFL=0
         TO=np.nan
-        LNB=np.nan
-        return(VMAX,PMIN,IFL,TO,LNB)
+        OTL=np.nan
+        return(VMAX,PMIN,IFL,TO,OTL)
 
     # CHECK 2: do Temperature profiles exceed 100K? If not, set IFL=0 and return missing PI
     if (np.min(T) <= 100):
@@ -448,22 +444,18 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle
         PMIN=np.nan
         IFL=0
         TO=np.nan
-        LNB=np.nan
-        return(VMAX,PMIN,IFL,TO,LNB)
+        OTL=np.nan
+        return(VMAX,PMIN,IFL,TO,OTL)
     
-    # Set Missing mixing ratios to zero gm/gm, following Kerry's algorithm
+    # Set Missing mixing ratios to zero g/g, following Kerry's BE02 algorithm
     R[np.isnan(R)]=0.
     
     # Saturated water vapor pressure
     # from Clausius-Clapeyron relation/August-Roche-Magnus formula
-    ES0=6.112*np.exp(17.67*SSTC/(243.5+SSTC))
+    ES0=utilities.es_cc(SSTC)
 
-    # Constants
-    NK=0         # level from which parcels lifted (first pressure level)
-    b=2.0        # Exponent for estimating azimuthal velocity in the eye, V=V_m(r/r_m)**b (Emanuel 1995, EQN. 25)
-    ptop=50      # Pressure below which sounding is ignored (hPa)
-    RD=287.04    # [J/kg.K] gas constant of dry air
-    EPS=RD/461.5 # [unitless] epsilon, the ratio of gas constants
+    # define the level from which parcels lifted (first pressure level)
+    NK=0
     
     #
     #   ***   Find environmental CAPE *** 
@@ -497,7 +489,8 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle
         #
         TP=T[NK]
         PP=min([PM,1000.0])
-        RP=EPS*R[NK]*MSL/(PP*(EPS+R[NK])-R[NK]*MSL)
+        # find the mixing ratior with the average of the lowest level pressure and MSL
+        RP=constants.EPS*R[NK]*MSL/(PP*(constants.EPS+R[NK])-R[NK]*MSL)
         result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle)
         CAPEM = result[0]
         IFLAG = result[3]
@@ -507,19 +500,19 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle
         
         #
         #  ***  Find saturation CAPE at radius of maximum winds    ***
-        #  *** Note that TO and LNB are found with this assumption ***
+        #  *** Note that TO and OTL are found with this assumption ***
         #
         TP=SSTK
         PP=min([PM,1000.0])
-        RP=0.622*ES0/(PP-ES0)
+        RP=utilities.rv(ES0,PP)
         result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle)
         CAPEMS, TOMS, LNBS, IFLAG = result
         # if the CAPE function tripped a flag, set the output IFL to it
         if (IFLAG != 1):
             IFL=int(IFLAG)
-        # Store the outflow temperature and level of neutral bouyancy
+        # Store the outflow temperature and level of neutral bouyancy at the outflow level (OTL)
         TO=TOMS   
-        LNB=LNBS
+        OTL=LNBS
         # Calculate the proxy for TC efficiency (BE02, EQN. 1-3)
         RAT=SSTK/TO
         # If dissipative heating is "off", TC efficiency proxy is set to 1.0 (BE02, pg. 3)
@@ -530,15 +523,16 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle
         #  ***  Initial estimate of pressure at the radius of maximum winds  ***
         #
         RS0=RP
-        # Surface Density Temperature (E94, EQN. 4.3.1 and 6.3.7)
-        TV0=T[0]*(1.+R[0]/EPS)/(1.+R[0])
+        # Lowest level and Sea-surface Density Temperature (E94, EQN. 4.3.1 and 6.3.7)
+        TV0=utilities.Trho(T[NK],R[NK],R[NK])
+        TVSST=utilities.Trho(SSTK,RS0,RS0)
         # Average Surface Density Temperature, e.g. 1/2*[Tv(Tsfc)+Tv(sst)]
-        TVAV=0.5*(TV0+SSTK*(1.+RS0/EPS)/(1.+RS0))
+        TVAV=0.5*(TV0+TVSST)
         # Converge toward CAPE*-CAPEM (BE02, EQN 3-4)
         CAT=(CAPEM-CAPEA)+0.5*CKCD*RAT*(CAPEMS-CAPEM)
         CAT=max([CAT,0.0])
         # Iterate on pressure
-        PNEW=MSL*np.exp(-CAT/(RD*TVAV))
+        PNEW=MSL*np.exp(-CAT/(constants.RD*TVAV))
         
         #
         #   ***  Test for convergence (setup for possible next while iteration)  ***
@@ -548,7 +542,7 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle
         # store the current step's pressure
         PM=PNEW
         # increase iteration count in the loop
-        NP=NP+1
+        NP += 1
         
         #
         #   ***   If the routine does not converge, set IFL=0 and return missing PI   ***
@@ -558,17 +552,17 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle
             PMIN=np.nan
             IFL=0
             TO=np.nan
-            LNB=np.nan
-            return(VMAX,PMIN,IFL,TO,LNB)
+            OTL=np.nan
+            return(VMAX,PMIN,IFL,TO,OTL)
     
     # Once converged, set potential intensity at the radius of maximum winds
-    CATFAC=0.5*(1.+1/b)
+    CATFAC=0.5*(1.+1/constants.b)
     CAT=(CAPEM-CAPEA)+CKCD*RAT*CATFAC*(CAPEMS-CAPEM)
     CAT=max([CAT,0.0])
     
     # Calculate the minimum pressure at the eye of the storm
     # BE02 EQN. 4
-    PMIN=MSL*np.exp(-CAT/(RD*TVAV))
+    PMIN=MSL*np.exp(-CAT/(constants.RD*TVAV))
                  
     # Calculate the potential intensity at the radius of maximum winds
     # BE02 EQN. 3, reduced by some fraction (default 20%) to account for the reduction 
@@ -577,4 +571,4 @@ def pi(SSTC,MSL,P,T,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle
     VMAX=V_reduc*np.sqrt(CKCD*RAT*FAC)
         
     # Return the calculated outputs to the above program level
-    return(VMAX,PMIN,IFL,TO,LNB)
+    return(VMAX,PMIN,IFL,TO,OTL)
