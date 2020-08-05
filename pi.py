@@ -6,10 +6,9 @@
 # Gilford et al. (2019) -- https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1
 # 
 # Adapted for Python (pyPI) by Daniel Gilford, PhD (Rutgers U., daniel.gilford@rutgers.edu)
-=======
 # Full pyPI documentation, module validation, and sample code provided at:
 # ********************** https://github.com/dgilford/pyPI ***************************
-# Last updated 6/18/2020, v1.2
+# Last updated 8/5/2020, v1.3
 # -----------------------------------------------------------------------------------
 #
 # Revision History:
