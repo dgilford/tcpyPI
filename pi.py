@@ -354,7 +354,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
 @nb.njit()
 def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,miss_handle=1):
     
-#     function [VMAX,PMIN,IFL,TO,OTL] = pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,miss_handle=0)
+#     function [VMAX,PMIN,IFL,TO,OTL] = pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,miss_handle=0)
 #
 #   ***    This function calculates the maximum wind speed         ***
 #   ***             and mimimum central pressure                   ***
@@ -488,7 +488,7 @@ def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,mi
         #
         TP=T[NK]
         PP=min([PM,1000.0])
-        # find the mixing ratior with the average of the lowest level pressure and MSL
+        # find the mixing ratio with the average of the lowest level pressure and MSL
         RP=constants.EPS*R[NK]*MSL/(PP*(constants.EPS+R[NK])-R[NK]*MSL)
         result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle)
         CAPEM = result[0]
