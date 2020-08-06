@@ -10,8 +10,8 @@
 # Thermodynamic Constants
 CPD=1005.7       # [J/kg.K] Specific heat of dry air at constant pressure
 CPV=1870.0       # [J/kg.K] Specific heat of water vapor at constant pressure
-#CL=4190.0       # [J/kg.K] Specific heat of liquid water
-CL=2500.0        # [J/kg.K] Modified specific heat of liquid water
+CL=4190.0       # [J/kg.K] Specific heat of liquid water
+#CL=2500.0        # [J/kg.K] Modified specific heat of liquid water
 CPVMCL=CPV-CL
 RV=461.5         # [J/kg.K] gas constant of water vapor
 RD=287.04        # [J/kg.K] gas constant of dry air
