@@ -5,10 +5,14 @@
 # Gilford et al. (2017) -- https://journals.ametsoc.org/doi/full/10.1175/JCLI-D-16-0827.1
 # Gilford et al. (2019) -- https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1
 # 
-# Adapted for Python (pyPI) by Daniel Gilford, PhD (Rutgers U., daniel.gilford@rutgers.edu)
+# Adapted for Python (pyPI/tcpypi) by Daniel Gilford, PhD (Rutgers U., daniel.gilford@rutgers.edu)
 # Full pyPI documentation, module validation, and sample code provided at:
 # ********************** https://github.com/dgilford/pyPI ***************************
-# Last updated 8/5/2020, v1.3
+#
+# Download with the python Package index from the command line with:
+#    > [missing url, please see most up to date version]
+#
+# Last updated 8/14/2020, v1.3
 # -----------------------------------------------------------------------------------
 #
 # Revision History:
@@ -24,6 +28,7 @@
 #   Revised 4/13/2020 by D. Gilford to add new handling of missing profile data
 #   Revised 6/17/2020 by D. Gilford for auxilary files
 #   Revised 8/5/2020 by D. Gilford for auxilary files
+#   Revised 8/14/2020 by D. Gilford for python packaging
 #
 # -----------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------
@@ -32,8 +37,8 @@
 # import required packages
 import numpy as np
 import numba as nb
-import constants
-import utilities
+from . import constants
+from . import utilities
 
 # define the function to calculate CAPE
 @nb.njit()

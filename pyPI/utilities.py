@@ -5,7 +5,7 @@
 # import numpy to use in functions
 import numba as nb
 import numpy as np
-import constants
+from . import constants
 
 # ---------------------- Longitude conversion ---------------------- %
 
