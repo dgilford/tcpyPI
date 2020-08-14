@@ -24,7 +24,7 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires='>=3.5',
+    python_requires='>=3.7',
     # TODO: Update install requirements and corresponding documentation
     install_requires=[
         "xarray==0.15.1",
