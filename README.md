@@ -4,7 +4,7 @@
 </p>
 
 pyPI is a set of scripts and notebooks that compute and validate tropical cyclone (TC) potential intensity (PI) calculations in Python.
-It is a port of the [Bister and Emanuel 2002](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2001JD000776) algorithm (hereafter BE02) which was originally written in FORTRAN---and then MATLAB---by Prof. Kerry Emanuel (MIT).
+It is a fully documented and improved port of the [Bister and Emanuel 2002](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2001JD000776) algorithm (hereafter BE02) which was originally written in FORTRAN---and then MATLAB---by Prof. Kerry Emanuel (MIT).
 Kerry's original MATLAB code (**pcmin.m**) is found at:
 
 * [http://texmex.mit.edu/pub/emanuel/TCMAX](http://texmex.mit.edu/pub/emanuel/TCMAX)
@@ -28,13 +28,23 @@ Gilford, D. M. 2020: pyPI: Potential Intensity Calculations in Python, v1.2, Zen
 
 ## Full pyPI Description
 
-Please read [pyPI_Documentation_v1.2.pdf](pyPI_Documentation_v1.2.pdf) for a full overview and details on pyPI.
+Please read [pyPI_Users_Guide_v1.3.pdf](pyPI_Users_Guide_v1.3.pdf) for a full overview and details on pyPI.
 The description includes the pyPI background, a PI computation derivation, validation against the commonly-used MATLAB algorithm (pcmin), and a set of sample analyses.
+
+A manuscript detailing the development of pyPI is be prepared for submission.
 
 ## Getting Started
 
 pyPI requires **Python version 3.7+** to run. It was written and tested with Python 3.7.6.
 To get pyPI up and running on your system, clone the repository and ensure that you have the required dependencies.
+
+### Installation
+
+Use the python package manager [pip](https://pip.pypa.io/en/stable/) to install pyPI (tcpypi) from the command line:
+
+```bash
+pip install tcpypi
+```
 
 ### pyPI Dependencies
 
@@ -62,7 +72,7 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 ## File Descriptions
 
 #### Key files
-* **[pi.py](pi.py)** - The primary function of pyPI, that computes and outputs PI (and associated variables) given atmospheric and ocean state variables.
+* **[pi.py](./pyPI/pi.py)** - The primary function of pyPI, that computes and outputs PI (and associated variables) given atmospheric and ocean state variables.
 * **[run_sample.py](run_sample.py)** - Example script that computes PI and accompanying analyses over the entire sample dataset
 
 #### Data
@@ -77,9 +87,10 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 * **[sample_output_analyses.ipynb](./notebooks/sample_output_analyses.ipynb)** - Notebook showing examples of pyPI outputs and simple PI analyses
 
 #### Misc.
-* **[utilities.py](utilities.py)** - Set of functions used in the pyPI codebase
+* **[utilities.py](./pyPI/utilities.py)** - Set of functions used in the pyPI codebase
+* **[constants.py](./pyPI/constants.py)** - Set of meteorological constants used in the pyPI codebase
 * **[reference_calculations.m](./matlab_scripts/reference_calculations.m)** - Script used to generate sample BE02 MATLAB outout data from original MERRA2 files monthly mean; included for posterity and transperancy
-* **[pc_min.m](pc_min.m)** - Original BE02 algorithm from MATLAB, adapted and used to produce analyses of Gilford et al. ([2017](https://journals.ametsoc.org/doi/abs/10.1175/JCLI-D-16-0827.1); [2019](https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1))
+* **[pc_min.m](./matlab_scripts/pc_min.m)** - Original BE02 algorithm from MATLAB, adapted and used to produce analyses of Gilford et al. ([2017](https://journals.ametsoc.org/doi/abs/10.1175/JCLI-D-16-0827.1); [2019](https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1))
 * **[clock_pypi.ipynb](./notebooks/clock_pypi.ipynb)** - Notebook estimating the time it takes to run pyPI on a laptop
 
 ## Author
