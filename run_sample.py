@@ -4,7 +4,7 @@
 # Created by Daniel Gilford, PhD (daniel.gilford@rutgers.edu)
 # Many thanks to Daniel Rothenberg for his assitance optimizing pyPI
 #
-# Last updated 4/16/2020
+# Last updated 8/14/2020
 #
 
 # setup
@@ -12,7 +12,8 @@ import xarray as xr
 import pickle
 
 # load in pyPI modules
-from pi import pi
+from pyPI import pi
+from pyPI.utilities import *
 
 # define the sample data locations
 datdir='./data/'
@@ -29,7 +30,7 @@ def run_sample_dataset(fn, dim='p',CKCD=0.9):
     result = xr.apply_ufunc(
         pi,
         ds['sst'], ds['msl'], ds['p'], ds['t'], ds['q'],
-        kwargs=dict(CKCD=CKCD, ascent_flag=0, diss_flag=1, miss_handle=1),
+        kwargs=dict(CKCD=CKCD, ascent_flag=0, diss_flag=1, ptop=50, miss_handle=1),
         input_core_dims=[
             [], [], ['p', ], ['p', ], ['p', ],
         ],
@@ -70,11 +71,6 @@ def run_sample_analyses(ds,_mdrF,CKCD=0.9):
 
     # load the basins dictionary
     basins = pickle.load( open( _mdrF, "rb" ) )
-    
-    # import functions for analyses
-    from utilities import pi_effiency
-    from utilities import pi_diseq_resid
-    from utilities import decompose_pi
     
     # calculate PI analyses over the whole data set using the xarray universal function
     efficiency = xr.apply_ufunc(
