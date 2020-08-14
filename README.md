@@ -23,7 +23,7 @@ pyPI was developed by [Daniel Gilford](https://github.com/dgilford) and has been
 
 If you use pyPI in your work, please include the citation:
 ```
-Gilford, D. M. 2020: pyPI: Potential Intensity Calculations in Python, v1.2, Zenodo, doi:10.5281/zenodo.3900548.
+Gilford, D. M. 2020: pyPI: Potential Intensity Calculations in Python, pyPI v1.3. Zenodo. http://doi.org/10.5281/zenodo.3985975
 ```
 
 ## Full pyPI Description
