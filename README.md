@@ -47,7 +47,7 @@ Is packaged using the python package manager [pip](https://pip.pypa.io/en/stable
 To install pyPI (tcpypi) from the command line:
 
 ```bash
-pip install tcpypi==1.3.1
+pip install tcpypi
 ```
 
 ### pyPI Dependencies
