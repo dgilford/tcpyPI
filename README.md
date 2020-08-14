@@ -40,10 +40,14 @@ To get pyPI up and running on your system, clone the repository and ensure that 
 
 ### Installation
 
-Use the python package manager [pip](https://pip.pypa.io/en/stable/) to install pyPI (tcpypi) from the command line:
+Is packaged using the python package manager [pip](https://pip.pypa.io/en/stable/).
+
+[![PyPI version](https://badge.fury.io/py/tcpypi.svg)](https://badge.fury.io/py/tcpypi)
+
+To install pyPI (tcpypi) from the command line:
 
 ```bash
-pip install tcpypi
+pip install tcpypi==1.3.1
 ```
 
 ### pyPI Dependencies
