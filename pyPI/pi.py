@@ -12,7 +12,7 @@
 # Download with the python Package index from the command line with:
 #    > [missing url, please see most up to date version]
 #
-# Last updated 8/14/2020, v1.3
+# Last updated 9/7/2020, v1.3
 # -----------------------------------------------------------------------------------
 #
 # Revision History:
@@ -29,6 +29,7 @@
 #   Revised 6/17/2020 by D. Gilford for auxilary files
 #   Revised 8/5/2020 by D. Gilford for auxilary files
 #   Revised 8/14/2020 by D. Gilford for python packaging
+#   Revised 9/7/2020 by D. Gilford to add outflow temperature flag
 #
 # -----------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------
