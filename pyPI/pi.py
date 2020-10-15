@@ -441,6 +441,14 @@ def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,mi
         TO=np.nan
         OTL=np.nan
         return(VMAX,PMIN,IFL,TO,OTL)
+    # CHECK 1b: are SSTs missing? If so, set IFL=0 and return missing PI
+    if (np.isnan(SSTC)==True):
+        VMAX=np.nan
+        PMIN=np.nan
+        IFL=0
+        TO=np.nan
+        OTL=np.nan
+        return(VMAX,PMIN,IFL,TO,OTL)
 
     # CHECK 2: do Temperature profiles exceed 100K? If not, set IFL=0 and return missing PI
     if (np.min(T) <= 100):
