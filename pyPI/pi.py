@@ -10,9 +10,9 @@
 # ********************** https://github.com/dgilford/pyPI ***************************
 #
 # Download with the python Package index from the command line with:
-#    > [missing url, please see most up to date version]
+#    > pip install tcpypi
 #
-# Last updated 8/14/2020, v1.3
+# Last updated 10/15/2020, v1.3.2
 # -----------------------------------------------------------------------------------
 #
 # Revision History:
@@ -29,6 +29,7 @@
 #   Revised 6/17/2020 by D. Gilford for auxilary files
 #   Revised 8/5/2020 by D. Gilford for auxilary files
 #   Revised 8/14/2020 by D. Gilford for python packaging
+#   Revised 10/15/2020 by D. Gilford to add missing SST-->IFL=0 condition/check
 #
 # -----------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------
@@ -442,7 +443,7 @@ def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,mi
         OTL=np.nan
         return(VMAX,PMIN,IFL,TO,OTL)
     # CHECK 1b: are SSTs missing? If so, set IFL=0 and return missing PI
-    if (np.isnan(SSTC)==True):
+    elif (np.isnan(SSTC)==True):
         VMAX=np.nan
         PMIN=np.nan
         IFL=0
