@@ -8,16 +8,16 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="tcpypi",
     # TODO: Update every time the version updates
-    version="1.3.1",
+    version="1.3.2",
     author="Daniel M. Gilford, PhD",
     author_email="daniel.gilford@rutgers.edu",
     description="pyPI: Tropical cyclone potential intensity calculations in Python",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/dgilford/pyPI",
-    download_url="https://github.com/darothen/pyrcel",
+    download_url="https://github.com/dgilford/pyPI",
     packages=setuptools.find_packages(),
-    package_data={"pyrcel": ["data/sample_data.nc"]},
+    package_data={"pyPI": ["data/sample_data.nc"]},
     license="MIT LICENSE",
     classifiers=[
         "Programming Language :: Python :: 3",
