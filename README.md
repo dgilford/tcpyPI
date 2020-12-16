@@ -36,8 +36,6 @@ Gilford, D. M. 2020: pyPI: Potential Intensity Calculations in Python, pyPI v1.3
 Please read [pyPI_Users_Guide_v1.3.pdf](pyPI_Users_Guide_v1.3.pdf) for a full overview and details on pyPI.
 The description includes the pyPI background, a PI computation derivation, validation against the commonly-used MATLAB algorithm (pcmin), and a set of sample analyses.
 
-A manuscript detailing the development of pyPI is be prepared for submission.
-
 ## Getting Started
 
 pyPI requires **Python version 3.7+** to run. It was written and tested with Python 3.7.6.
@@ -59,7 +57,6 @@ pip install tcpypi
 
 * NumPy 1.18.1
 * [Numba](http://numba.pydata.org/) 0.48.0
-* [xarray](http://xarray.pydata.org/) 0.15.1
 
 ### Python Implementation of "pc_min" (BE02 PI Calculator)
 
