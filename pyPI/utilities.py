@@ -97,7 +97,7 @@ def e_pLCL(TP,RH,PP):
 
 # define function to calculate TC efficiency
 @nb.njit()
-def pi_effiency(sstk,t0):
+def pi_efficiency(sstk,t0):
     # calculate efficiency with SST (K) and Outflow temperature (K)
     efficiency=(sstk-t0)/t0
     return(efficiency)
