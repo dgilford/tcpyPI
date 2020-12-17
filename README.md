@@ -14,24 +14,27 @@ The goals in developing and maintaining pyPI are to:
 * carefully document the BE02 algorithm and its Python implementation, and to
 * demonstrate and encourage the use of potential intensity theory in tropical cyclone climatology analysis.
 
-If you have any questions, comments, or feedback, please [contact the developer](mailto:daniel.gilford@rutgers.edu) or open an [Issue](https://github.com/dgilford/pyPI/issues) in the repository.
+If you have any questions, comments, or feedback, please [contact the developer](mailto:daniel.gilford@rutgers.edu) or open an [Issue](https://github.com/dgilford/pyPI/issues) in the repository. A paper detailing pyPI is currently [under review at Geoscientific Model Development](https://gmd.copernicus.org/preprints/gmd-2020-279/).
 
 ## Citation
 pyPI was developed by [Daniel Gilford](https://github.com/dgilford) and has been archived on Zenodo:
 
 [![DOI](https://zenodo.org/badge/247725622.svg)](https://zenodo.org/badge/latestdoi/247725622)
 
-If you use pyPI in your work, please include the citation:
+If you use pyPI in your work, please include the citations:
+```
+Gilford, D. M.: pyPI (v1.3): Tropical Cyclone Potential Intensity Calculations in Python, Geosci. Model Dev. Discuss., https://doi.org/10.5194/gmd-2020-279, in review, 2020.
+```
+and
 ```
 Gilford, D. M. 2020: pyPI: Potential Intensity Calculations in Python, pyPI v1.3. Zenodo. http://doi.org/10.5281/zenodo.3985975
 ```
+
 
 ## Full pyPI Description
 
 Please read [pyPI_Users_Guide_v1.3.pdf](pyPI_Users_Guide_v1.3.pdf) for a full overview and details on pyPI.
 The description includes the pyPI background, a PI computation derivation, validation against the commonly-used MATLAB algorithm (pcmin), and a set of sample analyses.
-
-A manuscript detailing the development of pyPI is be prepared for submission.
 
 ## Getting Started
 
@@ -54,7 +57,6 @@ pip install tcpypi
 
 * NumPy 1.18.1
 * [Numba](http://numba.pydata.org/) 0.48.0
-* [xarray](http://xarray.pydata.org/) 0.15.1
 
 ### Python Implementation of "pc_min" (BE02 PI Calculator)
 
