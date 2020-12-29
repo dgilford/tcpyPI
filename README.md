@@ -1,9 +1,9 @@
-# pyPI: Potential Intensity Calculations in Python
+# tcpyPI: Potential Intensity Calculations in Python
 <p align="center">
 <img src="./figures/readme_image.png" alt="" width="720" height="480">
 </p>
 
-pyPI is a set of scripts and notebooks that compute and validate tropical cyclone (TC) potential intensity (PI) calculations in Python.
+tcpyPI, 'pyPI' for short, is a set of scripts and notebooks that compute and validate tropical cyclone (TC) potential intensity (PI) calculations in Python.
 It is a fully documented and improved port of the [Bister and Emanuel 2002](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2001JD000776) algorithm (hereafter BE02) which was originally written in FORTRAN---and then MATLAB---by Prof. Kerry Emanuel (MIT).
 Kerry's original MATLAB code (**pcmin.m**) is found at:
 
@@ -22,13 +22,12 @@ pyPI was developed by [Daniel Gilford](https://github.com/dgilford) and has been
 [![DOI](https://zenodo.org/badge/247725622.svg)](https://zenodo.org/badge/latestdoi/247725622)
 
 If you use pyPI in your work, please include the citations:
-```
-Gilford, D. M.: pyPI (v1.3): Tropical Cyclone Potential Intensity Calculations in Python, Geosci. Model Dev. Discuss., https://doi.org/10.5194/gmd-2020-279, in review, 2020.
-```
+
+> Gilford, D. M.: pyPI (v1.3): Tropical Cyclone Potential Intensity Calculations in Python, Geosci. Model Dev. Discuss., https://doi.org/10.5194/gmd-2020-279, in review, 2020.
+
 and
-```
-Gilford, D. M. 2020: pyPI: Potential Intensity Calculations in Python, pyPI v1.3. Zenodo. http://doi.org/10.5281/zenodo.3985975
-```
+
+> Gilford, D. M. 2020: pyPI: Potential Intensity Calculations in Python, pyPI v1.3. Zenodo. http://doi.org/10.5281/zenodo.3985975
 
 
 ## Full pyPI Description
@@ -47,13 +46,13 @@ Is packaged using the python package manager [pip](https://pip.pypa.io/en/stable
 
 [![PyPI version](https://badge.fury.io/py/tcpypi.svg)](https://badge.fury.io/py/tcpypi)
 
-To install pyPI (tcpypi) from the command line:
+To install tcpypi from the command line:
 
 ```bash
 pip install tcpypi
 ```
 
-### pyPI Dependencies
+### tcpyPI Dependencies
 
 * NumPy 1.18.1
 * [Numba](http://numba.pydata.org/) 0.48.0
@@ -78,7 +77,7 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 ## File Descriptions
 
 #### Key files
-* **[pi.py](./pyPI/pi.py)** - The primary function of pyPI, that computes and outputs PI (and associated variables) given atmospheric and ocean state variables.
+* **[pi.py](./tcpyPI/pi.py)** - The primary function of pyPI, that computes and outputs PI (and associated variables) given atmospheric and ocean state variables.
 * **[run_sample.py](run_sample.py)** - Example script that computes PI and accompanying analyses over the entire sample dataset
 
 #### Data
@@ -93,8 +92,8 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 * **[sample_output_analyses.ipynb](./notebooks/sample_output_analyses.ipynb)** - Notebook showing examples of pyPI outputs and simple PI analyses
 
 #### Misc.
-* **[utilities.py](./pyPI/utilities.py)** - Set of functions used in the pyPI codebase
-* **[constants.py](./pyPI/constants.py)** - Set of meteorological constants used in the pyPI codebase
+* **[utilities.py](./tcpyPI/utilities.py)** - Set of functions used in the pyPI codebase
+* **[constants.py](./tcpyPI/constants.py)** - Set of meteorological constants used in the pyPI codebase
 * **[reference_calculations.m](./matlab_scripts/reference_calculations.m)** - Script used to generate sample BE02 MATLAB outout data from original MERRA2 files monthly mean; included for posterity and transperancy
 * **[pc_min.m](./matlab_scripts/pc_min.m)** - Original BE02 algorithm from MATLAB, adapted and used to produce analyses of Gilford et al. ([2017](https://journals.ametsoc.org/doi/abs/10.1175/JCLI-D-16-0827.1); [2019](https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1))
 * **[clock_pypi.ipynb](./notebooks/clock_pypi.ipynb)** - Notebook estimating the time it takes to run pyPI on a laptop
