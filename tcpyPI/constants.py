@@ -1,4 +1,4 @@
-# Constants file supporting pyPI: Potential Intensity Calculation in Python
+# Constants file supporting tcpyPI: Potential Intensity Calculation in Python
 #
 # Last updated 5/14/20
 # 

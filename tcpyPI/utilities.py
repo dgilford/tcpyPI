@@ -1,4 +1,4 @@
-# This module stores functions used throughout pyPI
+# This module stores functions used throughout tcpyPI
 # Last updated 4/16/2020
 #
 

@@ -7,7 +7,7 @@
 # 
 # Adapted for Python (pyPI/tcpypi) by Daniel Gilford, PhD (Rutgers U., daniel.gilford@rutgers.edu)
 # Full pyPI documentation, module validation, and sample code provided at:
-# ********************** https://github.com/dgilford/pyPI ***************************
+# ********************** https://github.com/dgilford/tcpyPI ***************************
 #
 # Download with the python Package index from the command line with:
 #    > pip install tcpypi
