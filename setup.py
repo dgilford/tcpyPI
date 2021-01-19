@@ -8,7 +8,7 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="tcpypi",
     # TODO: Update every time the version updates
-    version="1.3.3",
+    version="1.3.4",
     author="Daniel M. Gilford, PhD",
     author_email="daniel.gilford@rutgers.edu",
     description="tcpyPI: Tropical cyclone potential intensity calculations in Python",
