@@ -54,8 +54,11 @@ pip install tcpypi
 
 ### tcpyPI Dependencies
 
-* NumPy 1.18.1
-* [Numba](http://numba.pydata.org/) 0.48.0
+* NumPy
+* [Numba](http://numba.pydata.org/)
+
+Not required by tcpyPI---but highly recommended!---is the versatility in calculating PI over large datasets provided by [xarray](http://xarray.pydata.org/en/stable/).
+Dependancy versions and the associated tcpyPI updates are handled by [Dependabot](https://dependabot.com/).
 
 ### Python Implementation of "pc_min" (BE02 PI Calculator)
 
