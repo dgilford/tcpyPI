@@ -495,7 +495,7 @@ def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,mi
     IFL=int(1)   # Default flag for CAPE calculation
 
     # loop until convergence or bail out
-    while (np.abs(PNEW-PMOLD) > 0.5):
+    while (np.abs(PNEW-PMOLD) > 0.05):
         
         #
         #   ***  Find CAPE at radius of maximum winds   ***
