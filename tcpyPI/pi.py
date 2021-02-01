@@ -12,7 +12,7 @@
 # Download with the python Package index from the command line with:
 #    > pip install tcpypi
 #
-# Last updated 10/15/2020, v1.3.2
+# Last updated 2/1/2021, v1.3.4
 # -----------------------------------------------------------------------------------
 #
 # Revision History:
@@ -30,6 +30,7 @@
 #   Revised 8/5/2020 by D. Gilford for auxilary files
 #   Revised 8/14/2020 by D. Gilford for python packaging
 #   Revised 10/15/2020 by D. Gilford to add missing SST-->IFL=0 condition/check
+#   Revised 2/1/2021 by D. Gilford to validate units of input SSTs/T profile (should be Celsius)
 #
 # -----------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------
@@ -434,15 +435,17 @@ def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,mi
     T=utilities.T_Ctok(TC)      # Temperature profile in kelvin
     R=R*0.001                   # Mixing ratio profile in g/g
 
-    # CHECK 1: do SSTs exceed 5C? If not, set IFL=0 and return missing PI
-    if (SSTC <= 5.0):
+    # CHECK 1a: do SSTs exceed 5C?
+    # CHECK 1b: are SSTs less than 100C (if not, indicative of input in kelvin)
+    # If not, set IFL=0 and return missing PI
+    if (SSTC <= 5.0 or SSTC>100):
         VMAX=np.nan
         PMIN=np.nan
         IFL=0
         TO=np.nan
         OTL=np.nan
         return(VMAX,PMIN,IFL,TO,OTL)
-    # CHECK 1b: are SSTs missing? If so, set IFL=0 and return missing PI
+    # CHECK 1c: are SSTs missing? If so, set IFL=0 and return missing PI
     elif (np.isnan(SSTC)==True):
         VMAX=np.nan
         PMIN=np.nan
@@ -451,8 +454,10 @@ def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,mi
         OTL=np.nan
         return(VMAX,PMIN,IFL,TO,OTL)
 
-    # CHECK 2: do Temperature profiles exceed 100K? If not, set IFL=0 and return missing PI
-    if (np.min(T) <= 100):
+    # CHECK 2a: do Temperature profiles exceed 100K?
+    # CHECK 2b: are Temperatures in Celsius less than 100C (if not, indicative of input in kelvin)
+    # If not, set IFL=0 and return missing PI
+    if (np.min(T) <= 100 or np.max(TC)>100):
         VMAX=np.nan
         PMIN=np.nan
         IFL=0
