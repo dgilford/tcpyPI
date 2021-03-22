@@ -23,7 +23,7 @@ pyPI was developed by [Daniel Gilford](https://github.com/dgilford) and has been
 
 If you use pyPI in your work, please include the citations:
 
-> Gilford, D. M.: pyPI (v1.3): Tropical Cyclone Potential Intensity Calculations in Python, Geosci. Model Dev. Discuss., https://doi.org/10.5194/gmd-2020-279, in review, 2020.
+> Gilford, D. M.: pyPI (v1.3): Tropical Cyclone Potential Intensity Calculations in Python, Geosci. Model Dev. Discuss., https://doi.org/10.5194/gmd-2020-279, accepted, 2021.
 
 and
 
