@@ -14,7 +14,7 @@ The goals in developing and maintaining pyPI are to:
 * carefully document the BE02 algorithm and its Python implementation, and to
 * demonstrate and encourage the use of potential intensity theory in tropical cyclone climatology analysis.
 
-If you have any questions, comments, or feedback, please [contact the developer](mailto:daniel.gilford@rutgers.edu) or open an [Issue](https://github.com/dgilford/pyPI/issues) in the repository. A paper detailing pyPI is currently [under review at Geoscientific Model Development](https://gmd.copernicus.org/preprints/gmd-2020-279/).
+If you have any questions, comments, or feedback, please [contact the developer](mailto:daniel.gilford@rutgers.edu) or open an [Issue](https://github.com/dgilford/pyPI/issues) in the repository. A paper detailing pyPI is published [at Geoscientific Model Development](https://gmd.copernicus.org/articles/14/2351/2021/gmd-14-2351-2021.pdf).
 
 ## Citation
 pyPI was developed by [Daniel Gilford](https://github.com/dgilford) and has been archived on Zenodo:
@@ -23,7 +23,7 @@ pyPI was developed by [Daniel Gilford](https://github.com/dgilford) and has been
 
 If you use pyPI in your work, please include the citations:
 
-> Gilford, D. M.: pyPI (v1.3): Tropical Cyclone Potential Intensity Calculations in Python, Geosci. Model Dev. Discuss., https://doi.org/10.5194/gmd-2020-279, accepted, 2021.
+> Gilford, D. M.: pyPI (v1.3): Tropical Cyclone Potential Intensity Calculations in Python, Geosci. Model Dev., https://doi.org/10.5194/gmd-2020-279, May 2021.
 
 and
 
@@ -103,7 +103,7 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 
 ## Author
 
-* **Daniel M. Gilford, PhD** - *Development & Maintenance* - [GitHub](https://github.com/dgilford)
+* **Daniel M. Gilford, PhD** - *Creatiom, Development, & Maintenance* - [GitHub](https://github.com/dgilford)
 
 ### Contributor(s)
 * **Daniel Rothenberg, PhD** - *Numba Optimization & Sample Code* - [GitHub](https://github.com/darothen)
