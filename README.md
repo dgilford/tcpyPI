@@ -103,7 +103,7 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 
 ## Author
 
-* **Daniel M. Gilford, PhD** - *Creatiom, Development, & Maintenance* - [GitHub](https://github.com/dgilford)
+* **Daniel M. Gilford, PhD** - *Creation, Development, & Maintenance* - [GitHub](https://github.com/dgilford)
 
 ### Contributor(s)
 * **Daniel Rothenberg, PhD** - *Numba Optimization & Sample Code* - [GitHub](https://github.com/darothen)
