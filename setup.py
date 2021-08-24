@@ -28,7 +28,7 @@ setuptools.setup(
     # TODO: Update install requirements and corresponding documentation
     install_requires=[
         "xarray==0.19.0",
-        "numba==0.53.1",
+        "numba==0.54.0",
         "numpy==1.21.2",
     ],
 )
