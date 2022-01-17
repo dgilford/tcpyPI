@@ -64,7 +64,7 @@ Dependancy versions and the associated tcpyPI updates are handled by [Dependabot
 
 [pi.py](pi.py) is the Python function which directly computes PI given atmospheric and ocean state variables (akin to the BE02 algorithm MATLAB implementation [pc_min.m](pc_min.m)). Given input vector columns of environmental atmospheric temperatures (T) and mixing ratios (R) on a pressure grid (P), sea surface temperatures (SST), and mean sea-level pressures (MSL), the algorithm outputs potential intensity, the outflow level, the outflow temperature, and the minimum central pressure, and a flag that shows the status of the completed PI calculation. pyPI is an improvement on pcmin in that it handles missing values depending on user input flags.
 
-Users who want to apply the PI calculation to a set of local environmental conditions need only to download pi.py, organize their data appropriately, and call the function to return outputs, e.g.:
+Users who want to apply the PI calculation to a set of local environmental conditions need only to download [pi.py](./tcpyPI/pi.py), organize their data appropriately, and call the function to return outputs, e.g.:
 ```
 (VMAX,PMIN,IFL,TO,LNB)=pi(SST,MSL,P,T,R)
 ```
