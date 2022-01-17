@@ -5,7 +5,7 @@
 # Gilford et al. (2017) -- https://journals.ametsoc.org/doi/full/10.1175/JCLI-D-16-0827.1
 # Gilford et al. (2019) -- https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1
 # 
-# Adapted for Python (pyPI/tcpypi) by Daniel Gilford, PhD (Rutgers U., daniel.gilford@rutgers.edu)
+# Adapted for Python (pyPI/tcpypi) by Daniel Gilford, PhD (Climate Central, dgilford@climatecentral.org)
 # Full pyPI documentation, module validation, and sample code provided at:
 # ********************** https://github.com/dgilford/tcpyPI ***************************
 #
