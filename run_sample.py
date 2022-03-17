@@ -12,8 +12,8 @@ import xarray as xr
 import pickle
 
 # load in pyPI modules
-from pyPI import pi
-from pyPI.utilities import *
+from tcpyPI import pi
+from tcpyPI.utilities import *
 
 # define the sample data locations
 datdir='./data/'
@@ -74,7 +74,7 @@ def run_sample_analyses(ds,_mdrF,CKCD=0.9):
     
     # calculate PI analyses over the whole data set using the xarray universal function
     efficiency = xr.apply_ufunc(
-        pi_effiency,
+        pi_efficiency,
         ds['sst']+273.15, ds['t0'],
         input_core_dims=[
             [], [],
