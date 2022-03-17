@@ -29,10 +29,10 @@ def run_sample_dataset(fn, dim='p',CKCD=0.9):
     # calculate PI over the whole data set using the xarray universal function
     result = xr.apply_ufunc(
         pi,
-        ds['sst'], ds['msl'], ds['p'], ds['t'], ds['q'],
+        ds['sst'], ds['msl'], ds[dim], ds['t'], ds['q'],
         kwargs=dict(CKCD=CKCD, ascent_flag=0, diss_flag=1, ptop=50, miss_handle=1),
         input_core_dims=[
-            [], [], ['p', ], ['p', ], ['p', ],
+            [], [], [dim, ], [dim, ], [dim, ],
         ],
         output_core_dims=[
             [], [], [], [], []
