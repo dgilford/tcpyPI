@@ -29,7 +29,7 @@ setuptools.setup(
     install_requires=[
         "xarray==2022.3.0",
         "numba==0.55.1",
-        "numpy==1.22.3",
+        "numpy==1.22.4",
     ],
 )
 
