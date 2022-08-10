@@ -58,7 +58,7 @@ pip install tcpypi
 * [Numba](http://numba.pydata.org/)
 
 Not required by tcpyPI---but highly recommended!---is the versatility in calculating PI over large datasets provided by [xarray](http://xarray.pydata.org/en/stable/).
-Dependancy versions were originally handled by [Dependabot](https://dependabot.com/), but the code was not resilient to these changes to they are currently defunct (as of 10 August 2022). Please [notify me](mailto:dgilford@climatecentral.org) immediately if installation problems persist.
+Dependancy versions were originally handled by [Dependabot](https://dependabot.com/), but the code was not resilient to these changes so they are currently defunct (as of 10 August 2022). Please [notify me](mailto:dgilford@climatecentral.org) immediately if installation problems persist.
 
 ### Python Implementation of "pc_min" (BE02 PI Calculator)
 
