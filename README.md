@@ -37,12 +37,12 @@ The description includes the pyPI background, a PI computation derivation, valid
 
 ## Getting Started
 
-pyPI requires **Python version 3.7+** to run. It was written and tested with Python 3.7.6.
+pyPI requires **Python version 3.7+** to run. It was originally written and tested with Python 3.7.6 and has been recently validated with Python 3.8.8 (as of 10 August 2022).
 To get pyPI up and running on your system, clone the repository and ensure that you have the required dependencies.
 
 ### Installation
 
-Is packaged using the python package manager [pip](https://pip.pypa.io/en/stable/).
+pyPI is packaged using the python package manager [pip](https://pip.pypa.io/en/stable/).
 
 [![PyPI version](https://badge.fury.io/py/tcpypi.svg)](https://badge.fury.io/py/tcpypi)
 
@@ -58,7 +58,7 @@ pip install tcpypi
 * [Numba](http://numba.pydata.org/)
 
 Not required by tcpyPI---but highly recommended!---is the versatility in calculating PI over large datasets provided by [xarray](http://xarray.pydata.org/en/stable/).
-Dependancy versions and the associated tcpyPI updates are handled by [Dependabot](https://dependabot.com/).
+Dependancy versions were originally handled by [Dependabot](https://dependabot.com/), but the code was not resilient to these changes to they are currently defunct (as of 10 August 2022). Please [notify me](mailto:dgilford@climatecentral.org) immediately if installation problems persist.
 
 ### Python Implementation of "pc_min" (BE02 PI Calculator)
 
