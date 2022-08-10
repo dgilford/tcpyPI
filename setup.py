@@ -27,11 +27,18 @@ setuptools.setup(
     python_requires='>=3.7',
     # TODO: Update install requirements and corresponding documentation
     install_requires=[
-        "xarray==2022.3.0",
-        "numba==0.55.1",
-        "numpy==1.22.3",
+        "xarray==0.16.2",
+        "numba==0.51.2",
+        "numpy==1.19.5",
     ],
 )
 
 
 
+'1.19.5'
+>>> import numba
+>>> numba.__version__
+'0.51.2'
+>>> import xarray as xr
+xr>>> xr.__version__
+'0.16.2'
