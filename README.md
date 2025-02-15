@@ -14,7 +14,7 @@ The goals in developing and maintaining pyPI are to:
 * carefully document the BE02 algorithm and its Python implementation, and to
 * demonstrate and encourage the use of potential intensity theory in tropical cyclone climatology analysis.
 
-If you have any questions, comments, or feedback, please [contact the developer](mailto:daniel.gilford@rutgers.edu) or open an [Issue](https://github.com/dgilford/pyPI/issues) in the repository. A paper detailing pyPI is published [at Geoscientific Model Development](https://gmd.copernicus.org/articles/14/2351/2021/gmd-14-2351-2021.pdf).
+If you have any questions, comments, or feedback, please [contact the developer](mailto:dgilford@climatecentral.org) or open an [Issue](https://github.com/dgilford/pyPI/issues) in the repository. A paper detailing pyPI is published [at Geoscientific Model Development](https://gmd.copernicus.org/articles/14/2351/2021/gmd-14-2351-2021.pdf).
 
 ## Citation
 pyPI was developed by [Daniel Gilford](https://github.com/dgilford) and has been archived on Zenodo:
@@ -58,11 +58,11 @@ pip install tcpypi
 * [Numba](http://numba.pydata.org/)
 
 Not required by tcpyPI---but highly recommended!---is the versatility in calculating PI over large datasets provided by [xarray](http://xarray.pydata.org/en/stable/).
-Dependancy versions were originally handled by [Dependabot](https://dependabot.com/), but the code was not resilient to these changes so they are currently defunct (as of 10 August 2022). Please [notify me](mailto:dgilford@climatecentral.org) immediately if installation problems persist.
+Dependency versions were originally handled by [Dependabot](https://dependabot.com/), but the code was not resilient to these changes so they are currently defunct (as of 10 August 2022). Please [notify me](mailto:dgilford@climatecentral.org) immediately if installation problems persist.
 
 ### Python Implementation of "pc_min" (BE02 PI Calculator)
 
-[pi.py](pi.py) is the Python function which directly computes PI given atmospheric and ocean state variables (akin to the BE02 algorithm MATLAB implementation [pc_min.m](pc_min.m)). Given input vector columns of environmental atmospheric temperatures (T) and mixing ratios (R) on a pressure grid (P), sea surface temperatures (SST), and mean sea-level pressures (MSL), the algorithm outputs potential intensity, the outflow level, the outflow temperature, and the minimum central pressure, and a flag that shows the status of the completed PI calculation. pyPI is an improvement on pcmin in that it handles missing values depending on user input flags.
+[pi.py](tcpyPI/pi.py) is the Python function which directly computes PI given atmospheric and ocean state variables (akin to the BE02 algorithm MATLAB implementation [pc_min.m](matlab_scripts/pc_min.m)). Given input vector columns of environmental atmospheric temperatures (T) and mixing ratios (R) on a pressure grid (P), sea surface temperatures (SST), and mean sea-level pressures (MSL), the algorithm outputs potential intensity, the outflow level, the outflow temperature, and the minimum central pressure, and a flag that shows the status of the completed PI calculation. pyPI is an improvement on pcmin in that it handles missing values depending on user input flags.
 
 Users who want to apply the PI calculation to a set of local environmental conditions need only to download [pi.py](./tcpyPI/pi.py), organize their data appropriately, and call the function to return outputs, e.g.:
 ```
@@ -97,7 +97,7 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 #### Misc.
 * **[utilities.py](./tcpyPI/utilities.py)** - Set of functions used in the pyPI codebase
 * **[constants.py](./tcpyPI/constants.py)** - Set of meteorological constants used in the pyPI codebase
-* **[reference_calculations.m](./matlab_scripts/reference_calculations.m)** - Script used to generate sample BE02 MATLAB outout data from original MERRA2 files monthly mean; included for posterity and transperancy
+* **[reference_calculations.m](./matlab_scripts/reference_calculations.m)** - Script used to generate sample BE02 MATLAB output data from original MERRA2 files monthly mean; included for posterity and transparency
 * **[pc_min.m](./matlab_scripts/pc_min.m)** - Original BE02 algorithm from MATLAB, adapted and used to produce analyses of Gilford et al. ([2017](https://journals.ametsoc.org/doi/abs/10.1175/JCLI-D-16-0827.1); [2019](https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1))
 * **[clock_pypi.ipynb](./notebooks/clock_pypi.ipynb)** - Notebook estimating the time it takes to run pyPI on a laptop
 
