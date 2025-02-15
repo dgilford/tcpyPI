@@ -1,10 +1,10 @@
 """Helper functions used throughout tcpyPI"""
 # doctest: +ELLIPSIS
 
-import numba as nb
 import numpy as np
 
 from . import constants
+from .numba import njit
 
 # ---------------------- Longitude conversion ---------------------- %
 
@@ -56,7 +56,7 @@ def convert_lon_to360(lon180):
 
 # ---------------------- Unit Conversions ---------------------- %
 
-@nb.njit()
+@njit()
 def T_ktoC(Tk):
     """Convert kelvin to degrees Celsius.
     
@@ -74,7 +74,7 @@ def T_ktoC(Tk):
     """
     return (Tk-273.15)
 
-@nb.njit()
+@njit()
 def T_Ctok(TC):
     """Convert degrees Celsius to kelvin.
     
@@ -94,7 +94,7 @@ def T_Ctok(TC):
 
 # ---------------------- Thermodynamic Calculations ---------------------- %
 
-@nb.njit()
+@njit()
 def es_cc(TC):
     """Calculate saturated water vapor pressure from Clausius-Clapeyron relation/August-Roche-Magnus formula.
     
@@ -112,7 +112,7 @@ def es_cc(TC):
     """
     return 6.112*np.exp(17.67*TC/(243.5+TC))
 
-@nb.njit()
+@njit()
 def Lv(TC):
     """Calculate latent heat of vaporization as a function of temperature.
     
@@ -130,7 +130,7 @@ def Lv(TC):
     """
     return constants.ALV0+constants.CPVMCL*TC
 
-@nb.njit()
+@njit()
 def ev(R,P):
     """Calculate parcel vapor pressure.
     
@@ -149,7 +149,7 @@ def ev(R,P):
     """
     return R*P/(constants.EPS+R)
 
-@nb.njit()
+@njit()
 def rv(E,P):
     """Calculate parcel mixing ratio.
     
@@ -168,7 +168,7 @@ def rv(E,P):
     """
     return constants.EPS*E/(P-E)
 
-@nb.njit()
+@njit()
 def entropy_S(T,R,P):
     """Calculate total specific entropy per unit mass of dry air (E94, EQN. 4.5.9).
     
@@ -193,7 +193,7 @@ def entropy_S(T,R,P):
     S=(constants.CPD+R*constants.CL)*np.log(T)-constants.RD*np.log(P-EV)+ALV*R/T-R*constants.RV*np.log(RH)
     return(S)
 
-@nb.njit()
+@njit()
 def Trho(T,RT,R):
     """Calculate density temperature in K.
     
@@ -213,7 +213,7 @@ def Trho(T,RT,R):
     """
     return T*(1.+R/constants.EPS)/(1.+RT)
 
-@nb.njit()
+@njit()
 def e_pLCL(TP,RH,PP):
     """Calculate empirical lifting condensation level pressure (pLCL).
     
@@ -235,7 +235,7 @@ def e_pLCL(TP,RH,PP):
 
 # ---------------------- Analyses ---------------------- %
 
-@nb.njit()
+@njit()
 def pi_efficiency(sstk,t0):
     """Calculate TC efficiency.
     
@@ -255,7 +255,7 @@ def pi_efficiency(sstk,t0):
     efficiency=(sstk-t0)/t0
     return(efficiency)
 
-@nb.njit()
+@njit()
 def pi_diseq_resid(pi,sstk,t0,CKCD=0.9):
     """Calculate TC air-sea thermodynamic disequilibrium as a residual from Bister and Emanuel (1998; BE98) EQN. 21.
     
@@ -278,7 +278,7 @@ def pi_diseq_resid(pi,sstk,t0,CKCD=0.9):
     diseq=pi**2/(CKCD*efficiency)
     return(diseq)
 
-@nb.njit()
+@njit()
 def decompose_pi(pi,sstk,t0,CKCD=0.9):
     """Perform decomposition of TC PI terms from Wing et al. (2015), EQN. 2.
     

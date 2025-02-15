@@ -38,12 +38,12 @@
 
 # import required packages
 import numpy as np
-import numba as nb
+from .numba import njit
 from . import constants
 from . import utilities
 
 # define the function to calculate CAPE
-@nb.njit()
+@njit()
 def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
 
 #     function [CAPED,TOB,LNB,IFLAG]= cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1)
@@ -358,7 +358,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
 
 
 # define the function to calculate PI
-@nb.njit()
+@njit()
 def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,miss_handle=1):
     
 #     function [VMAX,PMIN,IFL,TO,OTL] = pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,miss_handle=0)
