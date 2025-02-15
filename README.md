@@ -62,9 +62,9 @@ Dependency versions were originally handled by [Dependabot](https://dependabot.c
 
 ### Python Implementation of "pc_min" (BE02 PI Calculator)
 
-[pi.py](tcpyPI/pi.py) is the Python function which directly computes PI given atmospheric and ocean state variables (akin to the BE02 algorithm MATLAB implementation [pc_min.m](matlab_scripts/pc_min.m)). Given input vector columns of environmental atmospheric temperatures (T) and mixing ratios (R) on a pressure grid (P), sea surface temperatures (SST), and mean sea-level pressures (MSL), the algorithm outputs potential intensity, the outflow level, the outflow temperature, and the minimum central pressure, and a flag that shows the status of the completed PI calculation. pyPI is an improvement on pcmin in that it handles missing values depending on user input flags.
+[pi.py](src/tcpyPI/pi.py) is the Python function which directly computes PI given atmospheric and ocean state variables (akin to the BE02 algorithm MATLAB implementation [pc_min.m](matlab_scripts/pc_min.m)). Given input vector columns of environmental atmospheric temperatures (T) and mixing ratios (R) on a pressure grid (P), sea surface temperatures (SST), and mean sea-level pressures (MSL), the algorithm outputs potential intensity, the outflow level, the outflow temperature, and the minimum central pressure, and a flag that shows the status of the completed PI calculation. pyPI is an improvement on pcmin in that it handles missing values depending on user input flags.
 
-Users who want to apply the PI calculation to a set of local environmental conditions need only to download [pi.py](./tcpyPI/pi.py), organize their data appropriately, and call the function to return outputs, e.g.:
+Users who want to apply the PI calculation to a set of local environmental conditions need only to download [pi.py](./src/tcpyPI/pi.py), organize their data appropriately, and call the function to return outputs, e.g.:
 ```
 (VMAX,PMIN,IFL,TO,LNB)=pi(SST,MSL,P,T,R)
 ```
@@ -80,7 +80,7 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 ## File Descriptions
 
 #### Key files
-* **[pi.py](./tcpyPI/pi.py)** - The primary function of pyPI, that computes and outputs PI (and associated variables) given atmospheric and ocean state variables.
+* **[pi.py](./src/tcpyPI/pi.py)** - The primary function of pyPI, that computes and outputs PI (and associated variables) given atmospheric and ocean state variables.
 * **[run_sample.py](run_sample.py)** - Example script that computes PI and accompanying analyses over the entire sample dataset
 
 #### Data
@@ -95,8 +95,8 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 * **[sample_output_analyses.ipynb](./notebooks/sample_output_analyses.ipynb)** - Notebook showing examples of pyPI outputs and simple PI analyses
 
 #### Misc.
-* **[utilities.py](./tcpyPI/utilities.py)** - Set of functions used in the pyPI codebase
-* **[constants.py](./tcpyPI/constants.py)** - Set of meteorological constants used in the pyPI codebase
+* **[utilities.py](./src/tcpyPI/utilities.py)** - Set of functions used in the pyPI codebase
+* **[constants.py](./src/tcpyPI/constants.py)** - Set of meteorological constants used in the pyPI codebase
 * **[reference_calculations.m](./matlab_scripts/reference_calculations.m)** - Script used to generate sample BE02 MATLAB output data from original MERRA2 files monthly mean; included for posterity and transparency
 * **[pc_min.m](./matlab_scripts/pc_min.m)** - Original BE02 algorithm from MATLAB, adapted and used to produce analyses of Gilford et al. ([2017](https://journals.ametsoc.org/doi/abs/10.1175/JCLI-D-16-0827.1); [2019](https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1))
 * **[clock_pypi.ipynb](./notebooks/clock_pypi.ipynb)** - Notebook estimating the time it takes to run pyPI on a laptop

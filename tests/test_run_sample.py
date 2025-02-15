@@ -1,8 +1,20 @@
 import os
+from importlib import util
 
 import xarray as xr
 
-from run_sample import run_sample_analyses, run_sample_dataset
+# Import run_sample.py directly from the file
+spec = util.spec_from_file_location("run_sample", "run_sample.py")
+if spec is None:
+    raise ImportError("Failed to import run_sample.py")
+run_sample = util.module_from_spec(spec)
+if spec.loader is None:
+    raise ImportError("Failed to get loader for run_sample.py")
+spec.loader.exec_module(run_sample)
+
+# Now we can use run_sample's functions
+run_sample_dataset = run_sample.run_sample_dataset
+run_sample_analyses = run_sample.run_sample_analyses
 
 # Define paths to input and reference output files
 DATA_FILE = os.path.join("data", "sample_data.nc")

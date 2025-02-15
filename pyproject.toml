@@ -41,6 +41,8 @@ exclude = [
   "/notebooks",
   "/tests",
   "/pyPI_Users_Guide_v1.3.pdf",
-  "/requirements.txt",
   "/run_sample.py",
 ] 
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tcpyPI"] 
