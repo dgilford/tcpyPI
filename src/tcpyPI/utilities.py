@@ -1,76 +1,190 @@
-# This module stores functions used throughout tcpyPI
-# Last updated 4/16/2020
-#
+"""Helper functions used throughout tcpyPI"""
 
-# import numpy to use in functions
 import numba as nb
 import numpy as np
+
 from . import constants
 
 # ---------------------- Longitude conversion ---------------------- %
 
-# define function to convert longitudes from 0-360E to 180W-180E, and vice-versa
 def convert_lon_to180(lon360):
+    """Convert longitudes from 0-360E to 180W-180E.
+    
+    Args:
+        lon360 (float): Longitude in 0-360E format
+        
+    Returns:
+        float: Longitude in 180W-180E format
+        
+    Examples:
+        >>> convert_lon_to180(0)
+        0
+        >>> convert_lon_to180(180)
+        180
+        >>> convert_lon_to180(181)
+        -179
+        >>> convert_lon_to180(360)
+        0
+    """
     lon180 = -((-lon360 + 180) % 360 - 180)
     return(lon180)
 
 def convert_lon_to360(lon180):
+    """Convert longitudes from 180W-180E to 0-360E.
+    
+    Args:
+        lon180 (float): Longitude in 180W-180E format
+        
+    Returns:
+        float: Longitude in 0-360E format
+        
+    Examples:
+        >>> convert_lon_to360(-1)
+        359
+        >>> convert_lon_to360(0)
+        0
+        >>> convert_lon_to360(1)
+        1
+        >>> convert_lon_to360(-180)
+        180
+        >>> convert_lon_to360(180)
+        180
+    """
     lon360 = lon180 % 360
     return(lon360)
 
 # ---------------------- Unit Conversions ---------------------- %
 
-# Convert kelvin to degrees Celsius
-# Input temperature (Tk) in kelvin
-# Output temperature (TC) in degrees Celsius
 @nb.njit()
 def T_ktoC(Tk):
+    """Convert kelvin to degrees Celsius.
+    
+    Args:
+        Tk (float): Temperature in kelvin
+        
+    Returns:
+        float: Temperature in degrees Celsius
+        
+    Examples:
+        >>> T_ktoC(273.15)
+        0.0
+        >>> T_ktoC(283.15)
+        10.0
+    """
     return (Tk-273.15)
 
-# Convert degrees Celsius to kelvin
-# Input temperature (TC) in degrees Celsius
-# Output temperature (Tk) in kelvin
 @nb.njit()
 def T_Ctok(TC):
+    """Convert degrees Celsius to kelvin.
+    
+    Args:
+        TC (float): Temperature in degrees Celsius
+        
+    Returns:
+        float: Temperature in kelvin
+        
+    Examples:
+        >>> T_Ctok(0)
+        273.15
+        >>> T_Ctok(10)
+        283.15
+    """
     return (TC+273.15)
 
 # ---------------------- Thermodynamic Calculations ---------------------- %
 
-# Saturated water vapor pressure
-# from Clausius-Clapeyron relation/August-Roche-Magnus formula
-# Input temperature (TC) in Celsius
-# Output saturation vapor pressure in hPa
 @nb.njit()
 def es_cc(TC):
+    """Calculate saturated water vapor pressure from Clausius-Clapeyron relation/August-Roche-Magnus formula.
+    
+    Args:
+        TC (float): Temperature in Celsius
+        
+    Returns:
+        float: Saturation vapor pressure in hPa
+        
+    Examples:
+        >>> round(es_cc(20), 3)
+        23.369
+        >>> round(es_cc(0), 3)
+        6.112
+    """
     return 6.112*np.exp(17.67*TC/(243.5+TC))
 
-# Latent heat of vaporization, as a function of temperature
-# Input temperature (TC) in Celsius
-# Output Latent heat of vaporization in J/kg
 @nb.njit()
 def Lv(TC):
+    """Calculate latent heat of vaporization as a function of temperature.
+    
+    Args:
+        TC (float): Temperature in Celsius
+        
+    Returns:
+        float: Latent heat of vaporization in J/kg
+        
+    Examples:
+        >>> Lv(0)  # doctest: +ELLIPSIS
+        2501000.0...
+        >>> Lv(20)  # doctest: +ELLIPSIS
+        2488400.0...
+    """
     return constants.ALV0+constants.CPVMCL*TC
 
-# Parcel vapor pressure (hPa)
-# Input mixing ratio (R) in gram/gram
-# Input pressure (P) in hPA
 @nb.njit()
 def ev(R,P):
+    """Calculate parcel vapor pressure.
+    
+    Args:
+        R (float): Mixing ratio in gram/gram
+        P (float): Pressure in hPa
+        
+    Returns:
+        float: Vapor pressure in hPa
+        
+    Examples:
+        >>> round(ev(0.01, 1000), 3)
+        15.823
+        >>> round(ev(0.02, 1000), 3)
+        31.154
+    """
     return R*P/(constants.EPS+R)
 
-# Parcel mixing ratio (gram/gram)
-# Input vapor pressure (E) in hPa
-# Input pressure (P) in hPA
 @nb.njit()
 def rv(E,P):
+    """Calculate parcel mixing ratio.
+    
+    Args:
+        E (float): Vapor pressure in hPa
+        P (float): Pressure in hPa
+        
+    Returns:
+        float: Mixing ratio in gram/gram
+        
+    Examples:
+        >>> round(rv(15.942, 1000), 5)
+        0.01008
+        >>> round(rv(31.250, 1000), 5)
+        0.02006
+    """
     return constants.EPS*E/(P-E)
 
-# Total specific Entropy per unit mass of dry air (E94, EQN. 4.5.9)
-# Input temperature (T) in kelvin
-# Input mixing ratio (R) in gram/gram
-# Input pressure (P) in hPA
 @nb.njit()
 def entropy_S(T,R,P):
+    """Calculate total specific entropy per unit mass of dry air (E94, EQN. 4.5.9).
+    
+    Args:
+        T (float): Temperature in kelvin
+        R (float): Mixing ratio in gram/gram
+        P (float): Pressure in hPa
+        
+    Returns:
+        float: Specific entropy
+        
+    Examples:
+        >>> round(entropy_S(300, 0.01, 1000), 2)
+        3987.18
+        >>> round(entropy_S(290, 0.005, 900), 2)
+        3868.02
+    """
     EV=ev(R,P)
     ES=es_cc(T-273.15)
     RH=min([EV/ES,1.0])
@@ -78,44 +192,113 @@ def entropy_S(T,R,P):
     S=(constants.CPD+R*constants.CL)*np.log(T)-constants.RD*np.log(P-EV)+ALV*R/T-R*constants.RV*np.log(RH)
     return(S)
 
-# Density temperature in K
-# Input temperature (T) in kelvin
-# Input total water content mixing ratio (RT) in gram/gram
-# Input parcel water vapor mixing ratio (R) in gram/gram
 @nb.njit()
 def Trho(T,RT,R):
+    """Calculate density temperature in K.
+    
+    Args:
+        T (float): Temperature in kelvin
+        RT (float): Total water content mixing ratio in gram/gram
+        R (float): Parcel water vapor mixing ratio in gram/gram
+        
+    Returns:
+        float: Density temperature in kelvin
+        
+    Examples:
+        >>> round(Trho(300, 0.02, 0.01), 2)
+        298.85
+        >>> round(Trho(290, 0.01, 0.005), 2)
+        289.44
+    """
     return T*(1.+R/constants.EPS)/(1.+RT)
 
-# Empirical pLCL
-# Input parcel pressure (PP), temperature (TP), and relative humidity
-# Output lifting condensation level pressure
 @nb.njit()
 def e_pLCL(TP,RH,PP):
+    """Calculate empirical lifting condensation level pressure (pLCL).
+    
+    Args:
+        TP (float): Parcel temperature in kelvin
+        RH (float): Relative humidity (0-1)
+        PP (float): Parcel pressure in hPa
+        
+    Returns:
+        float: LCL pressure in hPa
+        
+    Examples:
+        >>> round(e_pLCL(300, 0.8, 1000), 2)
+        948.71
+        >>> round(e_pLCL(290, 0.7, 900), 2)
+        830.84
+    """
     return PP*(RH**(TP/(constants.A-constants.B*RH-TP)))
 
 # ---------------------- Analyses ---------------------- %
 
-# define function to calculate TC efficiency
 @nb.njit()
 def pi_efficiency(sstk,t0):
-    # calculate efficiency with SST (K) and Outflow temperature (K)
+    """Calculate TC efficiency.
+    
+    Args:
+        sstk (float): Sea surface temperature in kelvin
+        t0 (float): Outflow temperature in kelvin
+        
+    Returns:
+        float: TC efficiency
+        
+    Examples:
+        >>> round(pi_efficiency(300, 200), 3)
+        0.5
+        >>> round(pi_efficiency(295, 210), 3)
+        0.405
+    """
     efficiency=(sstk-t0)/t0
     return(efficiency)
 
-# define function to calculate TC air-sea thermodynamic disequilibrium
-# as a residual from Bister and Emanuel (1998; BE98) EQN. 21
 @nb.njit()
 def pi_diseq_resid(pi,sstk,t0,CKCD=0.9):
-    # calculate efficiency with SST (K) and Outflow temperature (K)
+    """Calculate TC air-sea thermodynamic disequilibrium as a residual from Bister and Emanuel (1998; BE98) EQN. 21.
+    
+    Args:
+        pi (float): Potential intensity in m/s
+        sstk (float): Sea surface temperature in kelvin
+        t0 (float): Outflow temperature in kelvin
+        CKCD (float, optional): Ratio of exchange coefficients. Defaults to 0.9.
+        
+    Returns:
+        float: Disequilibrium
+        
+    Examples:
+        >>> round(pi_diseq_resid(70, 300, 200, 0.9), 2)
+        10888.89
+        >>> round(pi_diseq_resid(50, 295, 210, 0.9), 2)
+        6862.75
+    """
     efficiency=(sstk-t0)/t0
     # calculate disequilibrium with the BE98 equality
     diseq=pi**2/(CKCD*efficiency)
     return(diseq)
 
-# define function to perform decomposition of TC PI terms
-# from Wing et al. (2015), EQN. 2
 @nb.njit()
 def decompose_pi(pi,sstk,t0,CKCD=0.9):
+    """Perform decomposition of TC PI terms from Wing et al. (2015), EQN. 2.
+    
+    Args:
+        pi (float): Potential intensity in m/s
+        sstk (float): Sea surface temperature in kelvin
+        t0 (float): Outflow temperature in kelvin
+        CKCD (float, optional): Ratio of exchange coefficients. Defaults to 0.9.
+        
+    Returns:
+        tuple: (lnpi, lneff, lndiseq, lnCKCD)
+        
+    Examples:
+        >>> result = decompose_pi(70, 300, 200, 0.9)
+        >>> [round(x, 3) for x in result]
+        [8.497, -0.693, 9.295, -0.105]
+        >>> result = decompose_pi(50, 295, 210, 0.9)
+        >>> [round(x, 3) for x in result]
+        [7.824, -0.904, 8.834, -0.105]
+    """
     # the natural log of Ck/CD is a constant
     lnCKCD=np.log(CKCD)
     # calculate efficiency with SST (K) and Outflow temperature (K)
