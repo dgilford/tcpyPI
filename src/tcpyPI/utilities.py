@@ -298,6 +298,17 @@ def decompose_pi(pi,sstk,t0,CKCD=0.9):
         >>> result = decompose_pi(50, 295, 210, 0.9)
         >>> [round(x, 3) for x in result]
         [7.824, -0.904, 8.834, -0.105]
+
+    Exceptional cases:
+        - Efficiency is non-positive
+
+            >>> decompose_pi(70, 300, 300, 0.9)  # doctest: +ELLIPSIS
+            (nan, nan, nan, -0.105...)
+
+        - Potential intensity is non-positive
+
+            >>> decompose_pi(0, 300, 200, 0.9)  # doctest: +ELLIPSIS
+            (nan, -0.693..., nan, -0.105...)
     """
     # the natural log of Ck/CD is a constant
     lnCKCD=np.log(CKCD)
