@@ -1,4 +1,5 @@
 """Helper functions used throughout tcpyPI"""
+# doctest: +ELLIPSIS
 
 import numba as nb
 import numpy as np
@@ -104,9 +105,9 @@ def es_cc(TC):
         float: Saturation vapor pressure in hPa
         
     Examples:
-        >>> es_cc(20)  # doctest: +ELLIPSIS
+        >>> es_cc(20)
         23.369...
-        >>> es_cc(0)  # doctest: +ELLIPSIS
+        >>> es_cc(0)
         6.112...
     """
     return 6.112*np.exp(17.67*TC/(243.5+TC))
@@ -141,9 +142,9 @@ def ev(R,P):
         float: Vapor pressure in hPa
         
     Examples:
-        >>> ev(0.01, 1000)  # doctest: +ELLIPSIS
+        >>> ev(0.01, 1000)
         15.823...
-        >>> ev(0.02, 1000)  # doctest: +ELLIPSIS
+        >>> ev(0.02, 1000)
         31.154...
     """
     return R*P/(constants.EPS+R)
@@ -160,9 +161,9 @@ def rv(E,P):
         float: Mixing ratio in gram/gram
         
     Examples:
-        >>> rv(15.942, 1000)  # doctest: +ELLIPSIS
+        >>> rv(15.942, 1000)
         0.010076...
-        >>> rv(31.250, 1000)  # doctest: +ELLIPSIS
+        >>> rv(31.250, 1000)
         0.020063...
     """
     return constants.EPS*E/(P-E)
@@ -180,9 +181,9 @@ def entropy_S(T,R,P):
         float: Specific entropy
         
     Examples:
-        >>> entropy_S(300, 0.01, 1000)  # doctest: +ELLIPSIS
+        >>> entropy_S(300, 0.01, 1000)
         3987.17...
-        >>> entropy_S(290, 0.005, 900)  # doctest: +ELLIPSIS
+        >>> entropy_S(290, 0.005, 900)
         3868.01...
     """
     EV=ev(R,P)
@@ -205,9 +206,9 @@ def Trho(T,RT,R):
         float: Density temperature in kelvin
         
     Examples:
-        >>> Trho(300, 0.02, 0.01)  # doctest: +ELLIPSIS
+        >>> Trho(300, 0.02, 0.01)
         298.84...
-        >>> Trho(290, 0.01, 0.005)  # doctest: +ELLIPSIS
+        >>> Trho(290, 0.01, 0.005)
         289.43...
     """
     return T*(1.+R/constants.EPS)/(1.+RT)
@@ -225,9 +226,9 @@ def e_pLCL(TP,RH,PP):
         float: LCL pressure in hPa
         
     Examples:
-        >>> e_pLCL(300, 0.8, 1000)  # doctest: +ELLIPSIS
+        >>> e_pLCL(300, 0.8, 1000)
         948.70...
-        >>> e_pLCL(290, 0.7, 900)  # doctest: +ELLIPSIS
+        >>> e_pLCL(290, 0.7, 900)
         830.83...
     """
     return PP*(RH**(TP/(constants.A-constants.B*RH-TP)))
@@ -248,7 +249,7 @@ def pi_efficiency(sstk,t0):
     Examples:
         >>> pi_efficiency(300, 200)
         0.5
-        >>> pi_efficiency(295, 210)  # doctest: +ELLIPSIS
+        >>> pi_efficiency(295, 210)
         0.404...
     """
     efficiency=(sstk-t0)/t0
@@ -268,13 +269,12 @@ def pi_diseq_resid(pi,sstk,t0,CKCD=0.9):
         float: Disequilibrium
         
     Examples:
-        >>> pi_diseq_resid(70, 300, 200, 0.9)  # doctest: +ELLIPSIS
+        >>> pi_diseq_resid(70, 300, 200, 0.9)
         10888.88...
-        >>> pi_diseq_resid(50, 295, 210, 0.9)  # doctest: +ELLIPSIS
+        >>> pi_diseq_resid(50, 295, 210, 0.9)
         6862.74...
     """
     efficiency=(sstk-t0)/t0
-    # calculate disequilibrium with the BE98 equality
     diseq=pi**2/(CKCD*efficiency)
     return(diseq)
 
@@ -292,22 +292,22 @@ def decompose_pi(pi,sstk,t0,CKCD=0.9):
         tuple: (lnpi, lneff, lndiseq, lnCKCD)
         
     Examples:
-        >>> result = decompose_pi(70, 300, 200, 0.9)  # doctest: +ELLIPSIS
-        >>> [x for x in result]  # doctest: +ELLIPSIS
+        >>> result = decompose_pi(70, 300, 200, 0.9)
+        >>> [x for x in result]
         [8.496..., -0.693..., 9.295..., -0.105...]
-        >>> result = decompose_pi(50, 295, 210, 0.9)  # doctest: +ELLIPSIS
-        >>> [x for x in result]  # doctest: +ELLIPSIS
+        >>> result = decompose_pi(50, 295, 210, 0.9)
+        >>> [x for x in result]
         [7.824..., -0.904..., 8.833..., -0.105...]
 
     Exceptional cases:
         - Efficiency is non-positive
 
-            >>> decompose_pi(70, 300, 300, 0.9)  # doctest: +ELLIPSIS
+            >>> decompose_pi(70, 300, 300, 0.9)
             (nan, nan, nan, -0.105...)
 
         - Potential intensity is non-positive
 
-            >>> decompose_pi(0, 300, 200, 0.9)  # doctest: +ELLIPSIS
+            >>> decompose_pi(0, 300, 200, 0.9)
             (nan, -0.693..., nan, -0.105...)
     """
     # the natural log of Ck/CD is a constant
