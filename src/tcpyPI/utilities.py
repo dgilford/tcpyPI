@@ -104,10 +104,10 @@ def es_cc(TC):
         float: Saturation vapor pressure in hPa
         
     Examples:
-        >>> round(es_cc(20), 3)
-        23.369
-        >>> round(es_cc(0), 3)
-        6.112
+        >>> es_cc(20)  # doctest: +ELLIPSIS
+        23.369...
+        >>> es_cc(0)  # doctest: +ELLIPSIS
+        6.112...
     """
     return 6.112*np.exp(17.67*TC/(243.5+TC))
 
@@ -122,10 +122,10 @@ def Lv(TC):
         float: Latent heat of vaporization in J/kg
         
     Examples:
-        >>> Lv(0)  # doctest: +ELLIPSIS
-        2501000.0...
-        >>> Lv(20)  # doctest: +ELLIPSIS
-        2488400.0...
+        >>> Lv(0)
+        2501000.0
+        >>> Lv(20)
+        2488400.0
     """
     return constants.ALV0+constants.CPVMCL*TC
 
@@ -141,10 +141,10 @@ def ev(R,P):
         float: Vapor pressure in hPa
         
     Examples:
-        >>> round(ev(0.01, 1000), 3)
-        15.823
-        >>> round(ev(0.02, 1000), 3)
-        31.154
+        >>> ev(0.01, 1000)  # doctest: +ELLIPSIS
+        15.823...
+        >>> ev(0.02, 1000)  # doctest: +ELLIPSIS
+        31.154...
     """
     return R*P/(constants.EPS+R)
 
@@ -160,10 +160,10 @@ def rv(E,P):
         float: Mixing ratio in gram/gram
         
     Examples:
-        >>> round(rv(15.942, 1000), 5)
-        0.01008
-        >>> round(rv(31.250, 1000), 5)
-        0.02006
+        >>> rv(15.942, 1000)  # doctest: +ELLIPSIS
+        0.010076...
+        >>> rv(31.250, 1000)  # doctest: +ELLIPSIS
+        0.020063...
     """
     return constants.EPS*E/(P-E)
 
@@ -180,10 +180,10 @@ def entropy_S(T,R,P):
         float: Specific entropy
         
     Examples:
-        >>> round(entropy_S(300, 0.01, 1000), 2)
-        3987.18
-        >>> round(entropy_S(290, 0.005, 900), 2)
-        3868.02
+        >>> entropy_S(300, 0.01, 1000)  # doctest: +ELLIPSIS
+        3987.17...
+        >>> entropy_S(290, 0.005, 900)  # doctest: +ELLIPSIS
+        3868.01...
     """
     EV=ev(R,P)
     ES=es_cc(T-273.15)
@@ -205,10 +205,10 @@ def Trho(T,RT,R):
         float: Density temperature in kelvin
         
     Examples:
-        >>> round(Trho(300, 0.02, 0.01), 2)
-        298.85
-        >>> round(Trho(290, 0.01, 0.005), 2)
-        289.44
+        >>> Trho(300, 0.02, 0.01)  # doctest: +ELLIPSIS
+        298.84...
+        >>> Trho(290, 0.01, 0.005)  # doctest: +ELLIPSIS
+        289.43...
     """
     return T*(1.+R/constants.EPS)/(1.+RT)
 
@@ -225,10 +225,10 @@ def e_pLCL(TP,RH,PP):
         float: LCL pressure in hPa
         
     Examples:
-        >>> round(e_pLCL(300, 0.8, 1000), 2)
-        948.71
-        >>> round(e_pLCL(290, 0.7, 900), 2)
-        830.84
+        >>> e_pLCL(300, 0.8, 1000)  # doctest: +ELLIPSIS
+        948.70...
+        >>> e_pLCL(290, 0.7, 900)  # doctest: +ELLIPSIS
+        830.83...
     """
     return PP*(RH**(TP/(constants.A-constants.B*RH-TP)))
 
@@ -246,10 +246,10 @@ def pi_efficiency(sstk,t0):
         float: TC efficiency
         
     Examples:
-        >>> round(pi_efficiency(300, 200), 3)
+        >>> pi_efficiency(300, 200)
         0.5
-        >>> round(pi_efficiency(295, 210), 3)
-        0.405
+        >>> pi_efficiency(295, 210)  # doctest: +ELLIPSIS
+        0.404...
     """
     efficiency=(sstk-t0)/t0
     return(efficiency)
@@ -268,10 +268,10 @@ def pi_diseq_resid(pi,sstk,t0,CKCD=0.9):
         float: Disequilibrium
         
     Examples:
-        >>> round(pi_diseq_resid(70, 300, 200, 0.9), 2)
-        10888.89
-        >>> round(pi_diseq_resid(50, 295, 210, 0.9), 2)
-        6862.75
+        >>> pi_diseq_resid(70, 300, 200, 0.9)  # doctest: +ELLIPSIS
+        10888.88...
+        >>> pi_diseq_resid(50, 295, 210, 0.9)  # doctest: +ELLIPSIS
+        6862.74...
     """
     efficiency=(sstk-t0)/t0
     # calculate disequilibrium with the BE98 equality
@@ -292,12 +292,12 @@ def decompose_pi(pi,sstk,t0,CKCD=0.9):
         tuple: (lnpi, lneff, lndiseq, lnCKCD)
         
     Examples:
-        >>> result = decompose_pi(70, 300, 200, 0.9)
-        >>> [round(x, 3) for x in result]
-        [8.497, -0.693, 9.295, -0.105]
-        >>> result = decompose_pi(50, 295, 210, 0.9)
-        >>> [round(x, 3) for x in result]
-        [7.824, -0.904, 8.834, -0.105]
+        >>> result = decompose_pi(70, 300, 200, 0.9)  # doctest: +ELLIPSIS
+        >>> [x for x in result]  # doctest: +ELLIPSIS
+        [8.496..., -0.693..., 9.295..., -0.105...]
+        >>> result = decompose_pi(50, 295, 210, 0.9)  # doctest: +ELLIPSIS
+        >>> [x for x in result]  # doctest: +ELLIPSIS
+        [7.824..., -0.904..., 8.833..., -0.105...]
 
     Exceptional cases:
         - Efficiency is non-positive
