@@ -39,6 +39,7 @@ exclude = [
   "/figures",
   "/matlab_scripts",
   "/notebooks",
+  "/tests",
   "/pyPI_Users_Guide_v1.3.pdf",
   "/requirements.txt",
   "/run_sample.py",
