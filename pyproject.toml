@@ -46,3 +46,6 @@ exclude = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/tcpyPI"] 
+
+[tool.pytest.ini_options]
+addopts = "--doctest-modules"
