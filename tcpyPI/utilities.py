@@ -11,7 +11,7 @@ from . import constants
 
 # define function to convert longitudes from 0-360E to 180W-180E, and vice-versa
 def convert_lon_to180(lon360):
-    lon180 = (lon360-1e-6 + 180) % 360 - 180
+    lon180 = -((-lon360 + 180) % 360 - 180)
     return(lon180)
 
 def convert_lon_to360(lon180):
