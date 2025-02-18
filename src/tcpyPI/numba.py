@@ -1,6 +1,6 @@
-"""Conditionally import numba based on the DISABLE_NUMBA environment variable.
+"""Conditionally import numba based on the TCPYPI_DISABLE_NUMBA environment variable.
 
-Set the DISABLE_NUMBA environment variable to 1 to disable numba.
+Set the TCPYPI_DISABLE_NUMBA environment variable to 1 to disable numba.
 
 This is useful for coverage testing.
 """
@@ -25,7 +25,7 @@ def noop_njit(*args, **kwargs):
     return decorator
 
 
-if os.getenv("DISABLE_NUMBA") == "1":
+if os.getenv("TCPYPI_DISABLE_NUMBA") == "1":
     njit = noop_njit
 else:
     import numba as nb
