@@ -9,7 +9,6 @@
 
 # setup
 import xarray as xr
-import pickle
 
 # load in pyPI modules
 from tcpyPI import pi
@@ -18,7 +17,6 @@ from tcpyPI.utilities import *
 # define the sample data locations
 datdir='./data/'
 _FN=datdir+'sample_data.nc'
-_mdrF=datdir+'mdr.pk1' 
     
 
 def run_sample_dataset(fn, dim='p',CKCD=0.9):
@@ -66,11 +64,8 @@ def run_sample_dataset(fn, dim='p',CKCD=0.9):
     # return the output from pi.py as an xarray data structure
     return out_ds
 
-def run_sample_analyses(ds,_mdrF,CKCD=0.9):
+def run_sample_analyses(ds,CKCD=0.9):
     """ This function performs PI analyses over the sample dataset using xarray """
-
-    # load the basins dictionary
-    basins = pickle.load( open( _mdrF, "rb" ) )
     
     # calculate PI analyses over the whole data set using the xarray universal function
     efficiency = xr.apply_ufunc(
@@ -145,7 +140,7 @@ if __name__ == "__main__":
     
     # Perform PI analyses over the whole dataset
     print('Performing PI analyses...')
-    ds2 = run_sample_analyses(ds,_mdrF,CKCD=0.9)
+    ds2 = run_sample_analyses(ds,CKCD=0.9)
     
     # merge the arrays and save the output
     ds3=ds.merge(ds2)

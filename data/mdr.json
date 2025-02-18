@@ -1,0 +1,47 @@
+{
+  "na": {
+    "color": "red",
+    "name": "North Atlantic",
+    "shortname": "NA",
+    "lat_min": 7.5,
+    "lat_max": 32.5,
+    "lon_min": -95.0,
+    "lon_max": -50.0
+  },
+  "enp": {
+    "color": "darkgreen",
+    "name": "Eastern North Pacific",
+    "shortname": "ENP",
+    "lat_min": 2.5,
+    "lat_max": 17.5,
+    "lon_min": -170.0,
+    "lon_max": -90.0
+  },
+  "wnp": {
+    "color": "blue",
+    "name": "Western North Pacific",
+    "shortname": "WNP",
+    "lat_min": 2.5,
+    "lat_max": 17.5,
+    "lon_min": 130.0,
+    "lon_max": 180.0
+  },
+  "ni": {
+    "color": "gold",
+    "name": "North Indian",
+    "shortname": "NI",
+    "lat_min": 2.5,
+    "lat_max": 22.5,
+    "lon_min": 50.0,
+    "lon_max": 110.0
+  },
+  "sh": {
+    "color": "black",
+    "name": "Sothern Hemisphere",
+    "shortname": "SH",
+    "lat_min": -20.0,
+    "lat_max": -2.5,
+    "lon_min": 60.0,
+    "lon_max": 180.0
+  }
+}

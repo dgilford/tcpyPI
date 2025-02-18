@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+dist/
+*.egg-info
+
+# Jupyter
+.ipynb_checkpoints
+
+# Environment
+.env
+venv/
+.pixi/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data
+*.nc
+!data/*.nc

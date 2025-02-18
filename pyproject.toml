@@ -1,0 +1,50 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tcpyPI"
+dynamic = ["version"]
+description = "tcpyPI: Tropical cyclone potential intensity calculations in Python"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {file = "LICENSE" }
+authors = [
+    { name = "Daniel M. Gilford, PhD", email = "dgilford@climatecentral.org" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent"
+]
+dependencies = [
+    "numba>=0.51.2",
+    "numpy>=1.19.5"
+]
+
+[project.urls]
+Homepage = "https://github.com/dgilford/tcpyPI"
+Download = "https://github.com/dgilford/tcpyPI"
+
+# Configure hatch-vcs to extract version information from version control (e.g. Git tags)
+[tool.hatch.version]
+source = "vcs" 
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/.github",
+  "/data",
+  "/dist",
+  "/figures",
+  "/matlab_scripts",
+  "/notebooks",
+  "/tests",
+  "/pyPI_Users_Guide_v1.3.pdf",
+  "/run_sample.py",
+] 
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tcpyPI"] 
+
+[tool.pytest.ini_options]
+addopts = ["--doctest-modules", "-v"]
