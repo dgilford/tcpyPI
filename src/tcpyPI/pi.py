@@ -1,40 +1,36 @@
-# pyPI: Potential Intensity Calculations in Python
-# -----------------------------------------------------------------------------------
-# Adapted from pcmin.m by Kerry Emanuel (ftp://texmex.mit.edu/pub/emanuel/TCMAX)
-# Originally Updated by Daniel Gilford for
-# Gilford et al. (2017) -- https://journals.ametsoc.org/doi/full/10.1175/JCLI-D-16-0827.1
-# Gilford et al. (2019) -- https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1
-# 
-# Adapted for Python (pyPI/tcpypi) by Daniel Gilford, PhD (Climate Central, dgilford@climatecentral.org)
-# Full pyPI documentation, module validation, and sample code provided at:
-# ********************** https://github.com/dgilford/tcpyPI ***************************
-#
-# Download with the python Package index from the command line with:
-#    > pip install tcpypi
-#
-# Last updated 2/1/2021, v1.3.4
-# -----------------------------------------------------------------------------------
-#
-# Revision History:
-#   Revised on 9/24/2005 by K. Emanuel to fix convergence problems at high pressure
-#     --Converted to MATLAB  5/17/2008
-#   Revised 7/20/15 by D. Gilford to output the LNB
-#   Revised 8/4/16 by D. Gilford to include lack of convergence if SST < 5C for TO/LNB
-#   Revised 8/5/16 by D. Gilford to fix the "cape()" function output and include LNB
-#   Revised 10/3/16 by D. Gilford to set LNB to the pressure-weighted crossing of buoyancy from negative to positive (the zero-line)
-#   Revised 1/7/2017 by Luke Davis to fix and improper definition of JMIN, which should be the lowest profile level at or above the parcel level in the calculation of CAPE. Kerry is grateful to Luke and to Tim Merlis for pointing out this error. In practice, the error was usually less than 1 hPa in central pressure.    
-#     --Converted to Python  04/2020
-#   Revised 4/10/2020 by D. Rothenberg (daniel@danielrothenberg.com) for Numba optimization
-#   Revised 4/13/2020 by D. Gilford to add new handling of missing profile data
-#   Revised 6/17/2020 by D. Gilford for auxilary files
-#   Revised 8/5/2020 by D. Gilford for auxilary files
-#   Revised 8/14/2020 by D. Gilford for python packaging
-#   Revised 10/15/2020 by D. Gilford to add missing SST-->IFL=0 condition/check
-#   Revised 2/1/2021 by D. Gilford to validate units of input SSTs/T profile (should be Celsius)
-#
-# -----------------------------------------------------------------------------------
-# -----------------------------------------------------------------------------------
-#
+"""pyPI: Potential Intensity Calculations in Python
+
+Adapted from pcmin.m by Kerry Emanuel (ftp://texmex.mit.edu/pub/emanuel/TCMAX)
+Originally Updated by Daniel Gilford for
+Gilford et al. (2017) -- https://journals.ametsoc.org/doi/full/10.1175/JCLI-D-16-0827.1
+Gilford et al. (2019) -- https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1
+
+Adapted for Python (pyPI/tcpypi) by Daniel Gilford, PhD (Climate Central, dgilford@climatecentral.org)
+Full pyPI documentation, module validation, and sample code provided at:
+********************** https://github.com/dgilford/tcpyPI ***************************
+
+Download with the python Package index from the command line with:
+   > pip install tcpypi
+
+Last updated 2/1/2021, v1.3.4
+
+Revision History:
+  Revised on 9/24/2005 by K. Emanuel to fix convergence problems at high pressure
+    --Converted to MATLAB  5/17/2008
+  Revised 7/20/15 by D. Gilford to output the LNB
+  Revised 8/4/16 by D. Gilford to include lack of convergence if SST < 5C for TO/LNB
+  Revised 8/5/16 by D. Gilford to fix the "cape()" function output and include LNB
+  Revised 10/3/16 by D. Gilford to set LNB to the pressure-weighted crossing of buoyancy from negative to positive (the zero-line)
+  Revised 1/7/2017 by Luke Davis to fix and improper definition of JMIN, which should be the lowest profile level at or above the parcel level in the calculation of CAPE. Kerry is grateful to Luke and to Tim Merlis for pointing out this error. In practice, the error was usually less than 1 hPa in central pressure.    
+    --Converted to Python  04/2020
+  Revised 4/10/2020 by D. Rothenberg (daniel@danielrothenberg.com) for Numba optimization
+  Revised 4/13/2020 by D. Gilford to add new handling of missing profile data
+  Revised 6/17/2020 by D. Gilford for auxilary files
+  Revised 8/5/2020 by D. Gilford for auxilary files
+  Revised 8/14/2020 by D. Gilford for python packaging
+  Revised 10/15/2020 by D. Gilford to add missing SST-->IFL=0 condition/check
+  Revised 2/1/2021 by D. Gilford to validate units of input SSTs/T profile (should be Celsius)
+"""
 
 # import required packages
 import numpy as np
@@ -45,56 +41,50 @@ from . import utilities
 # define the function to calculate CAPE
 @njit()
 def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
+    """Calculate the CAPE of a parcel given parcel and environmental conditions.
 
-#     function [CAPED,TOB,LNB,IFLAG]= cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1)
-#
-#       This function calculates the CAPE of a parcel given parcel pressure PP (hPa), 
-#       temperature TP (K) and mixing ratio RP (gram/gram) and given a sounding
-#       of temperature (T in K) and mixing ratio (R in gram/gram) as a function
-#       of pressure (P in hPa). CAPED is the calculated value of CAPE following
-#       Emanuel 1994 (E94) Equation 6.3.6 and TOB is the temperature at the
-#       level of neutral buoyancy ("LNB") for the displaced parcel. IFLAG is a flag
-#       integer. If IFLAG = 1, routine is successful; if it is 0, routine did
-#       not run owing to improper sounding (e.g. no water vapor at parcel level).
-#       IFLAG=2 indicates that the routine did not converge, IFLAG=3 indicates that
-#       the input profile had missing values.         
-#
-#  INPUT:   TP,RP,PP: floating point numbers of Parcel pressure (hPa), 
-#             temperature (K), and mixing ratio (gram/gram)
-#
-#           T,R,P: One-dimensional arrays 
-#             containing environmental pressure (hPa), temperature (K),
-#             and mixing ratio (gram/gram) profiles. The arrays MUST be
-#             arranged so that the lowest index corresponds
-#             to the lowest model level, with increasing index
-#             corresponding to decreasing pressure.
-#
-#           ascent_flag: Adjustable constant fraction for buoyancy of displaced  
-#             parcels, where 0=Reversible ascent;  1=Pseudo-adiabatic ascent
-#
-#           ptop: Pressure below which sounding is ignored (hPa)
-#
-#           miss_handle: Flag that determines how missing (NaN) values are handled.
-#             If = 0 (BE02 default), NaN values in profile are ignored and PI is still calcuated
-#             If = 1 (pyPI default), given NaN values PI will be set to missing (with IFLAG=3)
-#             NOTE: If any missing values are between the lowest valid level and ptop
-#             then PI will automatically be set to missing (with IFLAG=3)
-#
-#
-#  OUTPUT:  CAPED (J/kg) is Convective Available Potential Energy of an air parcel
-#             consistent with its parcel and environmental properties.
-#
-#           TOB is the Temperature (K) at the level of neutral bouyancy 
-#             for the displaced air parcel
-#
-#           LNB is the pressure level of neutral bouyancy (hPa) for the 
-#             displaced air parcel
-#
-#           IFLAG is a flag where the value of 1 means OK; a value of 0
-#             indicates an improper sounding or parcel; a value of 2
-#             means that the routine failed to converge
-#
+    function [CAPED,TOB,LNB,IFLAG]= cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1)
 
+    This function calculates the CAPE of a parcel given parcel pressure PP (hPa), 
+    temperature TP (K) and mixing ratio RP (gram/gram) and given a sounding
+    of temperature (T in K) and mixing ratio (R in gram/gram) as a function
+    of pressure (P in hPa). CAPED is the calculated value of CAPE following
+    Emanuel 1994 (E94) Equation 6.3.6 and TOB is the temperature at the
+    level of neutral buoyancy ("LNB") for the displaced parcel.
+
+    Args:
+        TP (float): Parcel temperature (K)
+        RP (float): Parcel mixing ratio (gram/gram)
+        PP (float): Parcel pressure (hPa)
+        T (array): Environmental temperature profile (K)
+        R (array): Environmental mixing ratio profile (gram/gram)
+        P (array): Environmental pressure profile (hPa)
+            The arrays MUST be arranged so that the lowest index corresponds
+            to the lowest model level, with increasing index corresponding to
+            decreasing pressure.
+        ascent_flag (int, optional): Adjustable constant fraction for buoyancy of displaced parcels.
+            0 = Reversible ascent (default)
+            1 = Pseudo-adiabatic ascent.
+        ptop (float, optional): Pressure below which sounding is ignored (hPa). Defaults to 50.
+        miss_handle (int, optional): Flag for handling missing values.
+            0 = ignore NaN (BE02 default)
+                    NaN values in profile are ignored and PI is still calcuated.
+            1 = return missing values (pyPI default)
+                    given NaN values PI will be set to missing (with IFLAG=3)
+                    NOTE: If any missing values are between the lowest valid level and ptop
+                    then PI will automatically be set to missing (with IFLAG=3)
+
+    Returns:
+        tuple: (CAPED, TOB, LNB, IFLAG) where:
+            - CAPED (float): Convective Available Potential Energy (J/kg)
+            - TOB (float): Temperature at level of neutral buoyancy (K)
+            - LNB (float): Level of neutral buoyancy pressure (hPa)
+            - IFLAG (int): Status flag where:
+                1 = Success
+                0 = Improper sounding/parcel
+                2 = Did not converge
+                3 = Missing values in input profile
+    """
     #
     #   ***  Handle missing values   ***
     #
@@ -360,75 +350,70 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
 # define the function to calculate PI
 @njit()
 def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,miss_handle=1):
+    """Calculate maximum potential intensity given environmental conditions.
+
+    function [VMAX,PMIN,IFL,TO,OTL] = pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,miss_handle=0)
+
+    This function calculates the maximum wind speed and minimum central pressure
+    achievable in tropical cyclones, given a sounding and a sea surface temperature.
+
+    Thermodynamic and dynamic technical backgrounds (and calculations) are found in 
+    Bister and Emanuel (2002; BE02) and Emanuel's "Atmospheric Convection" (E94; 1994; ISBN: 978-0195066302).
     
-#     function [VMAX,PMIN,IFL,TO,OTL] = pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,miss_handle=0)
-#
-#   ***    This function calculates the maximum wind speed         ***
-#   ***             and mimimum central pressure                   ***
-#   ***    achievable in tropical cyclones, given a sounding       ***
-#   ***             and a sea surface temperature.                 ***
-#
-#   Thermodynamic and dynamic technical backgrounds (and calculations) are found in Bister 
-#   and Emanuel (2002; BE02) and Emanuel's "Atmospheric Convection" (E94; 1994; ISBN: 978-0195066302)
-#
-#  INPUT:   SSTC: Sea surface temperature (C)
-#
-#           MSL: Mean Sea level pressure (hPa)
-#
-#           P,TC,R: One-dimensional arrays 
-#             containing pressure (hPa), temperature (C),
-#             and mixing ratio (g/kg). The arrays MUST be
-#             arranged so that the lowest index corresponds
-#             to the lowest model level, with increasing index
-#             corresponding to decreasing pressure. The temperature
-#             sounding should extend to at least the tropopause and 
-#             preferably to the lower stratosphere, however the
-#             mixing ratios are not important above the boundary
-#             layer. Missing mixing ratios can be replaced by zeros
-#
-#           CKCD: Ratio of C_k to C_D (unitless number), i.e. the ratio
-#             of the exchange coefficients of enthalpy and momentum flux
-#             (e.g. see Bister and Emanuel 1998, EQN. 17-18). More discussion
-#             on CK/CD is found in Emanuel (2003). Default is 0.9 based
-#             on e.g. Wing et al. (2015)
-#
-#           ascent_flag: Adjustable constant fraction (unitless fraction) 
-#             for buoyancy of displaced parcels, where 
-#             0=Reversible ascent (default) and 1=Pseudo-adiabatic ascent
-#
-#           diss_flag: Adjustable switch integer (flag integer; 0 or 1)
-#             for whether dissipative heating is 1=allowed (default) or 0=disallowed.
-#             See Bister and Emanuel (1998) for inclusion of dissipative heating.
-#
-#           V_reduc: Adjustable constant fraction (unitless fraction) 
-#             for reduction of gradient winds to 10-m winds see 
-#             Emanuel (2000) and Powell (1980). Default is 0.8
-#
-#           ptop: Pressure below which sounding is ignored (hPa)
-#
-#           miss_handle: Flag that determines how missing (NaN) values are handled in CAPE calculation
-#             If = 0 (BE02 default), NaN values in profile are ignored and PI is still calcuated
-#             If = 1, given NaN values PI will be set to missing (with IFLAG=3)
-#             NOTE: If any missing values are between the lowest valid level and ptop
-#             then PI will automatically be set to missing (with IFLAG=3)
-#
-#  OUTPUT:  VMAX is the maximum surface wind speed (m/s)
-#             reduced to reflect surface drag via V_reduc
-#
-#           PMIN is the minimum central pressure (hPa)
-#
-#           IFL is a flag: A value of 1 means OK; a value of 0
-#             indicates no convergence; a value of 2
-#             means that the CAPE routine failed to converge;
-#             a value of 3  means the CAPE routine failed due to
-#             missing data in the inputs
-#
-#           TO is the outflow temperature (K)
-#
-#           OTL is the outflow temperature level (hPa), defined as the level of neutral bouyancy 
-#             where the outflow temperature is found, i.e. where buoyancy is actually equal 
-#             to zero under the condition of an air parcel that is saturated at sea level pressure
-#
+    Args:
+        SSTC (float): Sea surface temperature (C)
+        MSL (float): Mean sea level pressure (hPa)
+        P (array): Pressure levels (hPa)
+        TC (array): Temperature profile (C)
+        R (array): Mixing ratio profile (g/kg)
+            The arrays MUST be arranged so that the lowest index corresponds
+            to the lowest model level, with increasing index corresponding to
+            decreasing pressure. The temperature sounding should extend to at least
+            the tropopause and preferably to the lower stratosphere, however the
+            mixing ratios are not important above the boundary layer. Missing
+            mixing ratios can be replaced by zeros.
+        CKCD (float, optional): Ratio of C_k to C_D (unitless)
+            Defaults to 0.9
+            The ratio of the exchange coefficients of enthalpy and momentum flux
+            (e.g. see Bister and Emanuel 1998, EQN. 17-18). More discussion
+            on CK/CD is found in Emanuel (2003). Default is 0.9 based
+            on e.g. Wing et al. (2015)
+        ascent_flag (int, optional): Adjustable constant fraction for buoyancy (unitless)
+            0 = Reversible ascent (default)
+            1 = Pseudo-adiabatic ascent
+        diss_flag (int, optional): Switch for dissipative heating
+            1 = Allowed (default)
+            0 = Disallowed
+            See Bister and Emanuel (1998) for inclusion of dissipative heating.
+        V_reduc (float, optional): Reduction factor from gradient winds to 10m winds (unitless)
+            Defaults to 0.8.
+            See Emanuel (2000) and Powell (1980).
+        ptop (float, optional): Pressure below which sounding is ignored (hPa).
+            Defaults to 50.
+        miss_handle (int, optional): Flag for handling missing values.
+            0 = ignore NaN (BE02 default)
+                 NaN values in profile are ignored and PI is still calculated
+            1 = return missing values (pyPI default)
+                given NaN values PI will be set to missing (with IFL=3)
+                NOTE: If any missing values are between the lowest valid level and ptop
+                then PI will automatically be set to missing (with IFL=3)
+
+    Returns:
+        tuple: (VMAX, PMIN, IFL, TO, OTL) where:
+            - VMAX (float): Maximum surface wind speed (m/s)
+                reduced to reflect surface drag via V_reduc
+            - PMIN (float): Minimum central pressure (hPa)
+            - IFL (int): Status flag where:
+                1 = Success
+                0 = No convergence
+                2 = CAPE routine failed to converge
+                3 = CAPE routine failed due to missing data
+            - TO (float): Outflow temperature (K)
+            - OTL (float): Outflow temperature level (hPa)
+                Defined as the level of neutral bouyancy 
+                where the outflow temperature is found, i.e. where buoyancy is actually equal 
+                to zero under the condition of an air parcel that is saturated at sea level pressure
+    """
 
     # convert units
     SSTK=utilities.T_Ctok(SSTC) # SST in kelvin
