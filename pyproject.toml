@@ -48,4 +48,4 @@ exclude = [
 packages = ["src/tcpyPI"] 
 
 [tool.pytest.ini_options]
-addopts = "--doctest-modules"
+addopts = ["--doctest-modules", "-v"]
