@@ -31,6 +31,7 @@ Revision History:
   Revised 10/15/2020 by D. Gilford to add missing SST-->IFL=0 condition/check
   Revised 2/1/2021 by D. Gilford to validate units of input SSTs/T profile (should be Celsius)
 """
+# doctest: +ELLIPSIS
 
 # import required packages
 import numpy as np
@@ -350,7 +351,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
 # define the function to calculate PI
 @njit()
 def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,miss_handle=1):
-    """Calculate maximum potential intensity given environmental conditions.
+    r"""Calculate maximum potential intensity given environmental conditions.
 
     function [VMAX,PMIN,IFL,TO,OTL] = pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,miss_handle=0)
 
@@ -413,6 +414,72 @@ def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,mi
                 Defined as the level of neutral bouyancy 
                 where the outflow temperature is found, i.e. where buoyancy is actually equal 
                 to zero under the condition of an air parcel that is saturated at sea level pressure
+
+    Example:
+        >>> SSTC = 30
+        >>> MSL = 1010
+        >>> level_data = np.array(
+        ...     [
+        ...         [1000, 28, 18],
+        ...         [975, 25, 18],
+        ...         [950, 24, 16],
+        ...         [925, 23, 13],
+        ...         [900, 22, 12],
+        ...         [875, 20, 11],
+        ...         [850, 19, 10],
+        ...         [825, 18, 10],
+        ...         [800, 16, 9],
+        ...         [775, 15, 8],
+        ...         [750, 13, 7],
+        ...         [700, 11, 4],
+        ...         [650, 8, 3],
+        ...         [600, 5, 1.7],
+        ...         [550, 2, 1.2],
+        ...         [500, -2, 1.7],
+        ...         [450, -6, 0.7],
+        ...         [400, -11, 0.2],
+        ...         [350, -18, 0.15],
+        ...         [300, -27, 0.10],
+        ...         [250, -37, 0.11],
+        ...         [225, -43, 0.08],
+        ...         [200, -49, 0.05],
+        ...         [175, -57, 0.03],
+        ...         [150, -65, 0.014],
+        ...         [125, -73, 0.005],
+        ...         [100, -79, 0.003],
+        ...         [70, -73, 0.002],
+        ...         [50, -64, 0.002],
+        ...     ]
+        ... )
+        >>> P = level_data[:, 0]
+        >>> TC = level_data[:, 1]
+        >>> R = level_data[:, 2]
+        >>> VMAX, PMIN, IFL, TO, OTL = pi(SSTC, MSL, P, TC, R)
+        >>> print(f"VMAX: {VMAX}\nPMIN: {PMIN}\nIFL: {IFL}\nTO: {TO}\nOTL: {OTL}")
+        VMAX: 82.4845...
+        PMIN: 900.2039...
+        IFL: 1
+        TO: 197.1666...
+        OTL: 84.9169...
+
+    Exceptional cases:
+        - SST is missing, e.g. over land
+            >>> pi(np.nan, MSL, P, TC, R)
+            (nan, nan, 0, nan, nan)
+
+        - SST is given in Kelvin
+            >>> pi(300, MSL, P, TC, R)
+            (nan, nan, 0, nan, nan)
+
+        - Temperatures contain a nan
+            >>> nan_in_levels = np.zeros_like(P)
+            >>> nan_in_levels[5] = np.nan
+            >>> pi(SSTC, MSL, P, TC + nan_in_levels, R)
+            (nan, nan, 3, nan, nan)
+
+        - Mixing ratios contain a nan
+            >>> pi(SSTC, MSL, P, TC, R + nan_in_levels)
+            (82.4845..., 900.2039..., 1, 197.1666..., 84.9169...)
     """
 
     # convert units
