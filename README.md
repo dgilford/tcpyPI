@@ -37,7 +37,7 @@ The description includes the pyPI background, a PI computation derivation, valid
 
 ## Getting Started
 
-pyPI requires **Python version 3.7+** to run. It was originally written and tested with Python 3.7.6 and has been recently validated with Python 3.8.8 (as of 10 August 2022).
+pyPI requires **Python version 3.7+** to run.
 To get pyPI up and running on your system, clone the repository and ensure that you have the required dependencies.
 
 ### Installation
@@ -106,6 +106,7 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 * **Daniel M. Gilford, PhD** - *Creation, Development, & Maintenance* - [GitHub](https://github.com/dgilford)
 
 ### Contributor(s)
+* **Ben Mares** - *Modernization* - [GitHub](https://github.com/maresb)
 * **Daniel Rothenberg, PhD** - *Numba Optimization & Sample Code* - [GitHub](https://github.com/darothen)
 
 ## License
