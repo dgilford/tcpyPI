@@ -12,7 +12,7 @@ Full pyPI documentation, module validation, and sample code provided at:
 Download with the python Package index from the command line with:
    > pip install tcpypi
 
-Last updated 2/1/2021, v1.3.4
+Last updated 2/20/2025, v1.4
 
 Revision History:
   Revised on 9/24/2005 by K. Emanuel to fix convergence problems at high pressure
@@ -30,6 +30,7 @@ Revision History:
   Revised 8/14/2020 by D. Gilford for python packaging
   Revised 10/15/2020 by D. Gilford to add missing SST-->IFL=0 condition/check
   Revised 2/1/2021 by D. Gilford to validate units of input SSTs/T profile (should be Celsius)
+  Modernized 2/20/2025 by B. Mares and D. Gilford
 """
 # doctest: +ELLIPSIS
 
@@ -131,6 +132,15 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
     #
     #   ***  Run checks   ***
     #
+    
+    # CHECK: is the input profile ordered with increasing pressure? If not, return missing CAPE
+    if (P[2]-P[1] > 0):
+        CAPED=0
+        TOB=np.nan
+        LNB=np.nan
+        IFLAG=0
+        # Return the unsuitable values
+        return(CAPED,TOB,LNB,IFLAG)
 
     # CHECK: Is the input parcel suitable? If not, return missing CAPE
     if ((RP < 1e-6) or (TP < 200)):
