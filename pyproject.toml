@@ -48,3 +48,53 @@ packages = ["src/tcpyPI"]
 
 [tool.pytest.ini_options]
 addopts = ["--doctest-modules", "-v"]
+
+
+# Pixi is used for managing Conda environments in the development of tcpyPI.
+# It is not required for the installation or usage of tcpyPI.
+[tool.pixi.project]
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-64", "osx-arm64", "win-64"]
+
+[tool.pixi.pypi-dependencies]
+tcpypi = {path = ".", editable = true}
+
+[tool.pixi.dependencies]
+# Putting these here to install from conda-forge instead of PyPI.
+# The version constraints will get picked up from the tcpyPI PyPI editable package.
+python = "*"
+numpy = "*"
+numba = "*"
+
+[tool.pixi.feature.test.dependencies]
+pytest = "*"
+pytest-xdist = "*"
+
+[tool.pixi.feature.test.tasks]
+basic-tests = "python -m pytest -n auto --ignore run_sample.py --ignore tests/test_run_sample.py"
+xarray-tests = "python -m pytest -n auto tests/test_run_sample.py"
+
+[tool.pixi.feature.old-dependency-versions]
+# There is no Python 3.7 on osx-arm64, so we need to exclude it.
+platforms = ["linux-64", "win-64"]
+
+[tool.pixi.feature.old-dependency-versions.dependencies]
+python = "3.7.*"
+numba = "==0.51.2"
+numpy = "==1.19.5"
+
+[tool.pixi.feature.xarray.dependencies]
+xarray = "*"
+h5netcdf = "*"
+
+[tool.pixi.feature.notebook.dependencies]
+ipykernel = "*"
+
+[tool.pixi.environments]
+default = {features = ["test", "xarray", "notebook"], solve-group = "default"}
+minimal = {features = [], solve-group = "default"}
+# CI test environments,
+test-latest = {features = ["test"], solve-group = "default"}
+test-xarray-latest = {features = ["test", "xarray"], solve-group = "default"}
+test-old = {features = ["test", "old-dependency-versions"], solve-group = "old"}
+test-xarray-old = {features = ["test", "xarray", "old-dependency-versions"], solve-group = "old"}
