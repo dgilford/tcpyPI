@@ -211,71 +211,14 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
         #   *** Calculate Parcel quantities ABOVE lifted condensation level   ***
         # 
         else:
-            
-            # Initial default values before loop
-            TGNEW=T[j]
-            TJC=utilities.T_ktoC(T[j])
-            ES=utilities.es_cc(TJC)
-            RG=utilities.rv(ES,P[j])
-            
-            #
-            #   ***  Iteratively calculate lifted parcel temperature and mixing   ***
-            #   ***                ratio for reversible ascent                    ***
-            #
-            
-            # set loop counter and initial condition
-            NC=0
-            TG=0
+            TG, RG, IFLAG = solve_temperature_from_entropy(S=S, P=P[j], RP=RP, T_initial=T[j])
+            if IFLAG == 2:  # Did not converge
+                CAPED=0
+                TOB=T[0]
+                LNB=P[0]
+                # Return the uncoverged values
+                return(CAPED,TOB,LNB,IFLAG)
 
-            # loop until loop converges or bails out
-            while ((np.abs(TGNEW-TG)) > 0.001):
-            
-                # Parcel temperature and mixing ratio during this iteration
-                TG=TGNEW
-                TC=utilities.T_ktoC(TG)
-                ENEW=utilities.es_cc(TC)
-                RG=utilities.rv(ENEW,P[j])
-                
-                # increase iteration count in the loop
-                NC += 1
-                
-                #
-                #   ***  Calculate estimates of the rates of change of the entropy    ***
-                #   ***           with temperature at constant pressure               ***
-                #
-
-                ALV=utilities.Lv(TC)
-                # calculate the rate of change of entropy with temperature, s_ell
-                SL=(constants.CPD+RP*constants.CL+ALV*ALV*RG/(constants.RV*TG*TG))/TG
-                EM=utilities.ev(RG,P[j])
-                # calculate the saturated entropy, s_k, noting r_T=RP and
-                # the last term vanishes with saturation, i.e. RH=1
-                SG=(constants.CPD+RP*constants.CL)*np.log(TG)-constants.RD*np.log(P[j]-EM)+ALV*RG/TG
-                # convergence speed (AP, step in entropy fraction) varies as a function of 
-                # number of iterations
-                if (NC < 3):
-                    # converge slowly with a smaller step
-                    AP=0.3
-                else:
-                    # speed the process with a larger step when nearing convergence
-                    AP=1.0
-                # find the new temperature in the iteration
-                TGNEW=TG+AP*(S-SG)/SL
-                
-                #
-                #   ***   If the routine does not converge, set IFLAG=2 and bail out   ***
-                #
-                if (NC > 500) or (ENEW > (P[j]-1)):
-                    CAPED=0
-                    TOB=T[0]
-                    LNB=P[0]
-                    IFLAG=2
-                    # Return the uncoverged values
-                    return(CAPED,TOB,LNB,IFLAG)
-                
-                # store the number of iterations
-                NCMAX=NC
-                
             #
             #   *** Calculate buoyancy   ***
             #
@@ -355,7 +298,100 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
         # Return the calculated outputs to the above program level 
         return(CAPED,TOB,LNB,IFLAG)
 
+
+@njit()
+def solve_temperature_from_entropy(S, P, RP, T_initial):
+    """Compute the temperature corresponding to a given value for saturated entropy.
+
+    For given pressure P and dry mixing ratio RP, saturated entropy is a function
+    of temperature SG(T). This function uses Newton-Raphson iteration to invert
+    saturated entropy to find the temperature T that satisfies SG(T) = S for
+    a target value of saturated entropy S.
+
+    Args:
+        S (float): Target saturated entropy (J/kg/K).
+        P (float): Ambient pressure (hPa).
+        RP (float): Parcel mixing ratio for the dry component (g/g).
+        T_initial (float): Initial guess for temperature (K).
+
+    Returns:
+        tuple: (TG, RG, IFLAG) where:
+            TG (float): Temperature (K) satisfying SG(T) = S.
+            RG (float): Computed saturated mixing ratio (g/g).
+            IFLAG (int): Status flag where:
+                1 = Success
+                2 = Did not converge
+
+    Examples:
+        >>> S = 4000
+        >>> P = 1000
+        >>> RP = 0.01
+        >>> TG, RG, IFLAG = solve_temperature_from_entropy(S, P, RP, T_initial=300)
+        >>> print(f"TG: {TG}, RG: {RG}, IFLAG: {IFLAG}")
+        TG: 292.676..., RG: 0.0144..., IFLAG: 1
+    """
+    # Initial default values before loop
+    TGNEW=T_initial
+    TJC=utilities.T_ktoC(T_initial)
+    ES=utilities.es_cc(TJC)
+    RG=utilities.rv(ES,P)
     
+    #
+    #   ***  Iteratively calculate lifted parcel temperature and mixing   ***
+    #   ***                ratio for reversible ascent                    ***
+    #
+    
+    # set loop counter and initial condition
+    NC=0
+    TG=0
+
+    # loop until loop converges or bails out
+    while ((np.abs(TGNEW-TG)) > 0.001):
+    
+        # Parcel temperature and mixing ratio during this iteration
+        TG=TGNEW
+        TC=utilities.T_ktoC(TG)
+        ENEW=utilities.es_cc(TC)
+        RG=utilities.rv(ENEW,P)
+        
+        # increase iteration count in the loop
+        NC += 1
+        
+        #
+        #   ***  Calculate estimates of the rates of change of the entropy    ***
+        #   ***           with temperature at constant pressure               ***
+        #
+
+        ALV=utilities.Lv(TC)
+        # calculate the rate of change of entropy with temperature, s_ell
+        SL=(constants.CPD+RP*constants.CL+ALV*ALV*RG/(constants.RV*TG*TG))/TG
+        EM=utilities.ev(RG,P)
+        # calculate the saturated entropy, s_k, noting r_T=RP and
+        # the last term vanishes with saturation, i.e. RH=1
+        SG=(constants.CPD+RP*constants.CL)*np.log(TG)-constants.RD*np.log(P-EM)+ALV*RG/TG
+        # convergence speed (AP, step in entropy fraction) varies as a function of 
+        # number of iterations
+        if (NC < 3):
+            # converge slowly with a smaller step
+            AP=0.3
+        else:
+            # speed the process with a larger step when nearing convergence
+            AP=1.0
+        # find the new temperature in the iteration
+        TGNEW=TG+AP*(S-SG)/SL
+        
+        #
+        #   ***   If the routine does not converge, set IFLAG=2 and bail out   ***
+        #
+        if (NC > 500) or (ENEW > (P-1)):
+            IFLAG = 2  # Did not converge
+            return TG, RG, IFLAG
+        
+        # store the number of iterations
+        NCMAX=NC
+
+    IFLAG = 1  # Success
+    return TG, RG, IFLAG
 
 
 # define the function to calculate PI
