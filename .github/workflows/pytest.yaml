@@ -9,38 +9,33 @@ on:
 
 jobs:
   test:
-    name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    name: ${{ matrix.os }}-${{ matrix.dependencies }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false  # Don't cancel other jobs if one fails
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        # Python 3.7 is no longer available on the -latest series (except for Windows)
-        python-version: ["3.8", "3.13"]
+        dependencies: ["latest", "old"]
+        exclude:
+          # There's no Python 3.7 on osx-latest, so exclude this combo
+          - os: macos-latest
+            dependencies: "old"
 
     steps:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Needed for git history (tags)
 
-    - uses: actions/setup-python@v5
+    - uses: prefix-dev/setup-pixi@v0.8.3
       with:
-        python-version: ${{ matrix.python-version }}
+        environments: >-
+          test-${{ matrix.dependencies }}
+          test-xarray-${{ matrix.dependencies }}
 
-    - name: Install test dependencies
+    - name: Run basic tests
       run: |
-        python -m pip install --upgrade pip
-        python -m pip install pytest pytest-xdist --editable .
-        python -m pip freeze --local
+        pixi run -e test-${{ matrix.dependencies }} basic-tests
 
-    - name: Run tests not requiring xarray
+    - name: Run xarray tests
       run: |
-        python -m pytest -n auto --ignore run_sample.py --ignore tests/test_run_sample.py
-
-    - name: Install xarray
-      run: |
-        python -m pip install xarray h5netcdf
-
-    - name: Run tests requiring xarray
-      run: |
-        python -m pytest -n auto tests/test_run_sample.py
+        pixi run -e test-xarray-${{ matrix.dependencies }} xarray-tests
