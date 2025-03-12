@@ -585,7 +585,44 @@ def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,mi
     # if the CAPE function tripped a flag, set the output IFL to it
     if (IFLAG != 1):
         IFL=int(IFLAG)
+
+    CAPEM, CAPEMS, RAT, TVAV, IFL, TO, OTL = pmin_loop(SSTK,MSL,P,T,R,CAPEA,ES0,NK,CKCD,ascent_flag,diss_flag,ptop,miss_handle)
+    #
+    #   ***   If the routine does not converge, set IFL=0 and return missing PI   ***
+    #
+    if IFL == 0:
+        VMAX=np.nan
+        PMIN=np.nan
+        IFL=0
+        TO=np.nan
+        OTL=np.nan
+        return(VMAX,PMIN,IFL,TO,OTL)
+
+    # Once converged, set potential intensity at the radius of maximum winds
+    CATFAC=0.5*(1.+1/constants.b)
+    CAT=(CAPEM-CAPEA)+CKCD*RAT*CATFAC*(CAPEMS-CAPEM)
+    CAT=max([CAT,0.0])
     
+    # Calculate the minimum pressure at the eye of the storm
+    # BE02 EQN. 4
+    PMIN=MSL*np.exp(-CAT/(constants.RD*TVAV))
+                 
+    # Calculate the potential intensity at the radius of maximum winds
+    # BE02 EQN. 3, reduced by some fraction (default 20%) to account for the reduction 
+    # of 10-m winds from gradient wind speeds (Emanuel 2000, Powell 1980)
+    FAC=max([0.0,(CAPEMS-CAPEM)])
+    VMAX=V_reduc*np.sqrt(CKCD*RAT*FAC)
+        
+    # Return the calculated outputs to the above program level
+    return(VMAX,PMIN,IFL,TO,OTL)
+
+
+@njit()
+def pmin_loop(SSTK,MSL,P,T,R,CAPEA,ES0,NK,CKCD=0.9,ascent_flag=0,diss_flag=1,ptop=50,miss_handle=1):
+    """
+    Calculate quantities associated with the minimum pressure at the eye of the storm
+    """
+
     #
     #   ***   Begin iteration to find mimimum pressure   ***
     #
@@ -660,31 +697,9 @@ def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,mi
         # increase iteration count in the loop
         NP += 1
         
-        #
-        #   ***   If the routine does not converge, set IFL=0 and return missing PI   ***
-        #
+        # if the routine does not converge, set IFL=0 and return nan
         if (NP > 200)  or (PM < 400):
-            VMAX=np.nan
-            PMIN=np.nan
             IFL=0
-            TO=np.nan
-            OTL=np.nan
-            return(VMAX,PMIN,IFL,TO,OTL)
-    
-    # Once converged, set potential intensity at the radius of maximum winds
-    CATFAC=0.5*(1.+1/constants.b)
-    CAT=(CAPEM-CAPEA)+CKCD*RAT*CATFAC*(CAPEMS-CAPEM)
-    CAT=max([CAT,0.0])
-    
-    # Calculate the minimum pressure at the eye of the storm
-    # BE02 EQN. 4
-    PMIN=MSL*np.exp(-CAT/(constants.RD*TVAV))
-                 
-    # Calculate the potential intensity at the radius of maximum winds
-    # BE02 EQN. 3, reduced by some fraction (default 20%) to account for the reduction 
-    # of 10-m winds from gradient wind speeds (Emanuel 2000, Powell 1980)
-    FAC=max([0.0,(CAPEMS-CAPEM)])
-    VMAX=V_reduc*np.sqrt(CKCD*RAT*FAC)
-        
-    # Return the calculated outputs to the above program level
-    return(VMAX,PMIN,IFL,TO,OTL)
+            return(np.nan, np.nan, np.nan, np.nan, IFL, np.nan, np.nan)
+
+    return CAPEM, CAPEMS, RAT, TVAV, IFL, TO, OTL
