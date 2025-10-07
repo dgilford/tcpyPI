@@ -31,6 +31,7 @@ Revision History:
   Revised 10/15/2020 by D. Gilford to add missing SST-->IFL=0 condition/check
   Revised 2/1/2021 by D. Gilford to validate units of input SSTs/T profile (should be Celsius)
   Modernized 2/20/2025 by B. Mares and D. Gilford
+  Revised 10/7/2025 by D. Gilford updating non-convergence flag==>2
 """
 # doctest: +ELLIPSIS
 
@@ -657,16 +658,18 @@ def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,mi
         PMOLD=PM
         # store the current step's pressure
         PM=PNEW
+        print(float(PM))
+        
         # increase iteration count in the loop
         NP += 1
-        
+        print(NP)
         #
-        #   ***   If the routine does not converge, set IFL=0 and return missing PI   ***
+        #   ***   If the routine does not converge, set IFL=2 and return missing PI   ***
         #
         if (NP > 200)  or (PM < 400):
             VMAX=np.nan
             PMIN=np.nan
-            IFL=0
+            IFL=2
             TO=np.nan
             OTL=np.nan
             return(VMAX,PMIN,IFL,TO,OTL)
