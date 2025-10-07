@@ -658,11 +658,9 @@ def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,mi
         PMOLD=PM
         # store the current step's pressure
         PM=PNEW
-        print(float(PM))
         
         # increase iteration count in the loop
         NP += 1
-        print(NP)
         #
         #   ***   If the routine does not converge, set IFL=2 and return missing PI   ***
         #
