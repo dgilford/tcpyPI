@@ -32,6 +32,10 @@ Revision History:
   Revised 2/1/2021 by D. Gilford to validate units of input SSTs/T profile (should be Celsius)
   Modernized 2/20/2025 by B. Mares and D. Gilford
   Revised 10/7/2025 by D. Gilford updating non-convergence flag==>2
+  Revised 1/13/2026 by D. Gilford:
+    - Added `outflow_source` option ("cape_star" vs "cape_env") to control how outflow temperature/level are defined.
+    - Added log decomposition API (`log_decompose_pi`, `pi_log_decomposition`) and updated sample workflow/docs to use it.
+    - Standardized main-module docstrings (NumPy style) and expanded README guidance on sensitivity/configuration options.
 """
 # doctest: +ELLIPSIS
 
@@ -432,158 +436,27 @@ def solve_temperature_from_entropy(S, P, RP, T_initial):
 
 # define the function to calculate PI
 @njit()
-def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,miss_handle=1):
-    r"""Calculate maximum potential intensity given environmental conditions.
+def _pi_numba(
+    SSTC,
+    MSL,
+    P,
+    TC,
+    R,
+    CKCD=0.9,
+    ascent_flag=0,
+    diss_flag=1,
+    V_reduc=0.8,
+    ptop=50,
+    miss_handle=1,
+    outflow_source_flag=0,
+):
+    """Internal Numba-compiled implementation for :func:`tcpyPI.pi`.
 
-    function [VMAX,PMIN,IFL,TO,OTL] = pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,miss_handle=0)
-
-    This function calculates the maximum wind speed and minimum central pressure
-    achievable in tropical cyclones, given a sounding and a sea surface temperature.
-
-    Thermodynamic and dynamic technical backgrounds (and calculations) are found in 
-    Bister and Emanuel (2002; BE02) and Emanuel's "Atmospheric Convection" (E94; 1994; ISBN: 978-0195066302).
-    
-    Parameters
-    ----------
-    SSTC : float
-        Sea surface temperature (C).
-    MSL : float
-        Mean sea level pressure (hPa).
-    P : array
-        Pressure levels (hPa).
-    TC : array
-        Temperature profile (C).
-    R : array
-        Mixing ratio profile (g/kg).
-
-        The arrays MUST be arranged so that the lowest index corresponds to the
-        lowest model level, with increasing index corresponding to decreasing
-        pressure. The temperature sounding should extend to at least the tropopause
-        and preferably to the lower stratosphere; mixing ratios are not important
-        above the boundary layer. Missing mixing ratios can be replaced by zeros.
-    CKCD : float, default=0.9
-        Ratio of C_k to C_D (unitless).
-
-        The ratio of the exchange coefficients of enthalpy and momentum flux
-        (e.g. see Bister and Emanuel 1998, EQN. 17-18). More discussion on Ck/Cd is
-        found in Emanuel (2003). Default is 0.9 based on e.g. Wing et al. (2015).
-    ascent_flag : int, default=0
-        Adjustable constant fraction for buoyancy (unitless).
-
-        - ``0``: reversible ascent
-        - ``1``: pseudo-adiabatic ascent
-    diss_flag : int, default=1
-        Switch for dissipative heating.
-
-        - ``1``: allowed
-        - ``0``: disallowed
-
-        See Bister and Emanuel (1998) for inclusion of dissipative heating.
-    V_reduc : float, default=0.8
-        Reduction factor from gradient winds to 10 m winds (unitless).
-        See Emanuel (2000) and Powell (1980).
-    ptop : float, default=50
-        Pressure below which sounding is ignored (hPa).
-    miss_handle : int, default=1
-        Flag for handling missing values.
-
-        - ``0``: ignore NaN (BE02 default); NaN values in the profile are ignored
-          and PI may still be calculated.
-        - ``1``: return missing values (pyPI default); any NaNs set outputs to
-          missing with ``IFL=3``.
-
-        NOTE: If any missing values are between the lowest valid level and `ptop`,
-        outputs are set to missing with ``IFL=3`` regardless of `miss_handle`.
-
-    Returns
-    -------
-    tuple
-        ``(VMAX, PMIN, IFL, TO, OTL)`` where:
-
-        - VMAX : float
-            Maximum surface wind speed (m/s), reduced by `V_reduc`.
-        - PMIN : float
-            Minimum central pressure (hPa).
-        - IFL : int
-            Status flag:
-
-            - ``1``: success
-            - ``0``: no convergence
-            - ``2``: CAPE routine failed to converge
-            - ``3``: CAPE routine failed due to missing data
-        - TO : float
-            Outflow temperature (K).
-        - OTL : float
-            Outflow temperature level (hPa), defined as the level of neutral buoyancy
-            where the outflow temperature is found (buoyancy equal to zero for a parcel
-            saturated at sea level pressure).
-
-    Examples
-    --------
-        >>> SSTC = 30
-        >>> MSL = 1010
-        >>> level_data = np.array(
-        ...     [
-        ...         [1000, 28, 18],
-        ...         [975, 25, 18],
-        ...         [950, 24, 16],
-        ...         [925, 23, 13],
-        ...         [900, 22, 12],
-        ...         [875, 20, 11],
-        ...         [850, 19, 10],
-        ...         [825, 18, 10],
-        ...         [800, 16, 9],
-        ...         [775, 15, 8],
-        ...         [750, 13, 7],
-        ...         [700, 11, 4],
-        ...         [650, 8, 3],
-        ...         [600, 5, 1.7],
-        ...         [550, 2, 1.2],
-        ...         [500, -2, 1.7],
-        ...         [450, -6, 0.7],
-        ...         [400, -11, 0.2],
-        ...         [350, -18, 0.15],
-        ...         [300, -27, 0.10],
-        ...         [250, -37, 0.11],
-        ...         [225, -43, 0.08],
-        ...         [200, -49, 0.05],
-        ...         [175, -57, 0.03],
-        ...         [150, -65, 0.014],
-        ...         [125, -73, 0.005],
-        ...         [100, -79, 0.003],
-        ...         [70, -73, 0.002],
-        ...         [50, -64, 0.002],
-        ...     ]
-        ... )
-        >>> P = level_data[:, 0]
-        >>> TC = level_data[:, 1]
-        >>> R = level_data[:, 2]
-        >>> VMAX, PMIN, IFL, TO, OTL = pi(SSTC, MSL, P, TC, R)
-        >>> print(f"VMAX: {VMAX}\nPMIN: {PMIN}\nIFL: {IFL}\nTO: {TO}\nOTL: {OTL}")
-        VMAX: 82.4845...
-        PMIN: 900.2039...
-        IFL: 1
-        TO: 197.1666...
-        OTL: 84.9169...
-
-    Exceptional cases:
-        - SST is missing, e.g. over land
-            >>> pi(np.nan, MSL, P, TC, R)
-            (nan, nan, 0, nan, nan)
-
-        - SST is given in Kelvin
-            >>> pi(300, MSL, P, TC, R)
-            (nan, nan, 0, nan, nan)
-
-        - Temperatures contain a nan
-            >>> nan_in_levels = np.zeros_like(P)
-            >>> nan_in_levels[5] = np.nan
-            >>> pi(SSTC, MSL, P, TC + nan_in_levels, R)
-            (nan, nan, 3, nan, nan)
-
-        - Mixing ratios contain a nan
-            >>> pi(SSTC, MSL, P, TC, R + nan_in_levels)
-            (82.4845..., 900.2039..., 1, 197.1666..., 84.9169...)
+    Notes
+    -----
+    `outflow_source_flag` selects how outflow (`TO`, `OTL`) is defined:
+    - 0: ``"cape_star"`` (default)
+    - 1: ``"cape_env"``
     """
 
     # convert units
@@ -655,6 +528,9 @@ def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,mi
     PNEW=0.0     # initial condition from minimum pressure
     IFL=int(1)   # Default flag for CAPE calculation
 
+    TO_ENV=np.nan
+    OTL_ENV=np.nan
+
     # loop until convergence or bail out
     while (np.abs(PNEW-PMOLD) > 0.5):
         
@@ -665,12 +541,14 @@ def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,mi
         PP=min([PM,1000.0])
         # find the mixing ratio with the average of the lowest level pressure and MSL
         RP=constants.EPS*R[NK]*MSL/(PP*(constants.EPS+R[NK])-R[NK]*MSL)
-        result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle)
-        CAPEM = result[0]
-        IFLAG = result[3]
+        CAPEM, TOB_ENV, LNB_ENV, IFLAG = cape(
+            TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle
+        )
         # if the CAPE function tripped a different flag, set the output IFL to it
         if (IFLAG != 1):
             IFL=int(IFLAG)
+        TO_ENV=TOB_ENV
+        OTL_ENV=LNB_ENV
         
         #
         #  ***  Find saturation CAPE at radius of maximum winds    ***
@@ -687,6 +565,10 @@ def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,mi
         # Store the outflow temperature and level of neutral bouyancy at the outflow level (OTL)
         TO=TOMS   
         OTL=LNBS
+        # Optionally use CAPEenv (final-iteration) outflow definition.
+        if outflow_source_flag == 1:
+            TO=TO_ENV
+            OTL=OTL_ENV
         # Calculate the proxy for TC efficiency (BE02, EQN. 1-3)
         RAT=SSTK/TO
         # If dissipative heating is "off", TC efficiency proxy is set to 1.0 (BE02, pg. 3)
@@ -746,3 +628,199 @@ def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,mi
         
     # Return the calculated outputs to the above program level
     return(VMAX,PMIN,IFL,TO,OTL)
+
+
+def pi(
+    SSTC,
+    MSL,
+    P,
+    TC,
+    R,
+    CKCD=0.9,
+    ascent_flag=0,
+    diss_flag=1,
+    V_reduc=0.8,
+    ptop=50,
+    miss_handle=1,
+    outflow_source="cape_star",
+):
+    r"""Calculate maximum potential intensity given environmental conditions.
+
+    function [VMAX,PMIN,IFL,TO,OTL] = pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,miss_handle=0,outflow_source="cape_star")
+
+    This function calculates the maximum wind speed and minimum central pressure
+    achievable in tropical cyclones, given a sounding and a sea surface temperature.
+
+    Thermodynamic and dynamic technical backgrounds (and calculations) are found in
+    Bister and Emanuel (2002; BE02) and Emanuel's "Atmospheric Convection" (E94; 1994; ISBN: 978-0195066302).
+
+    Parameters
+    ----------
+    SSTC : float
+        Sea surface temperature (C).
+    MSL : float
+        Mean sea level pressure (hPa).
+    P : array
+        Pressure levels (hPa).
+    TC : array
+        Temperature profile (C).
+    R : array
+        Mixing ratio profile (g/kg).
+
+        The arrays MUST be arranged so that the lowest index corresponds to the
+        lowest model level, with increasing index corresponding to decreasing
+        pressure. The temperature sounding should extend to at least the tropopause
+        and preferably to the lower stratosphere; mixing ratios are not important
+        above the boundary layer. Missing mixing ratios can be replaced by zeros.
+    CKCD : float, default=0.9
+        Ratio of C_k to C_D (unitless).
+
+        The ratio of the exchange coefficients of enthalpy and momentum flux
+        (e.g. see Bister and Emanuel 1998, EQN. 17-18). More discussion on Ck/Cd is
+        found in Emanuel (2003). Default is 0.9 based on e.g. Wing et al. (2015).
+    ascent_flag : int, default=0
+        Adjustable constant fraction for buoyancy (unitless).
+
+        - ``0``: reversible ascent
+        - ``1``: pseudo-adiabatic ascent
+    diss_flag : int, default=1
+        Switch for dissipative heating.
+
+        - ``1``: allowed
+        - ``0``: disallowed
+
+        See Bister and Emanuel (1998) for inclusion of dissipative heating.
+    V_reduc : float, default=0.8
+        Reduction factor from gradient winds to 10 m winds (unitless).
+        See Emanuel (2000) and Powell (1980).
+    ptop : float, default=50
+        Pressure below which sounding is ignored (hPa).
+    miss_handle : int, default=1
+        Flag for handling missing values.
+
+        - ``0``: ignore NaN (BE02 default); NaN values in the profile are ignored
+          and PI may still be calculated.
+        - ``1``: return missing values (pyPI default); any NaNs set outputs to
+          missing with ``IFL=3``.
+
+        NOTE: If any missing values are between the lowest valid level and `ptop`,
+        outputs are set to missing with ``IFL=3`` regardless of `miss_handle`.
+    outflow_source : {"cape_star", "cape_env"}, default="cape_star"
+        Which CAPE calculation supplies the outflow temperature and level:
+
+        - ``"cape_star"``: use the saturated CAPE* calculation (parcel saturated at
+          SST) (default; matches BE02/pcmin behavior).
+        - ``"cape_env"``: use the environmental CAPE calculation (CAPEenv) from the
+          final convergence iteration (as discussed in Gilford et al. 2021).
+
+    Returns
+    -------
+    tuple
+        ``(VMAX, PMIN, IFL, TO, OTL)`` where:
+
+        - VMAX : float
+            Maximum surface wind speed (m/s), reduced by `V_reduc`.
+        - PMIN : float
+            Minimum central pressure (hPa).
+        - IFL : int
+            Status flag:
+
+            - ``1``: success
+            - ``0``: no convergence
+            - ``2``: CAPE routine failed to converge
+            - ``3``: CAPE routine failed due to missing data
+        - TO : float
+            Outflow temperature (K).
+        - OTL : float
+            Outflow temperature level (hPa), defined as the level of neutral buoyancy.
+
+    Examples
+    --------
+        >>> SSTC = 30
+        >>> MSL = 1010
+        >>> level_data = np.array(
+        ...     [
+        ...         [1000, 28, 18],
+        ...         [975, 25, 18],
+        ...         [950, 24, 16],
+        ...         [925, 23, 13],
+        ...         [900, 22, 12],
+        ...         [875, 20, 11],
+        ...         [850, 19, 10],
+        ...         [825, 18, 10],
+        ...         [800, 16, 9],
+        ...         [775, 15, 8],
+        ...         [750, 13, 7],
+        ...         [700, 11, 4],
+        ...         [650, 8, 3],
+        ...         [600, 5, 1.7],
+        ...         [550, 2, 1.2],
+        ...         [500, -2, 1.7],
+        ...         [450, -6, 0.7],
+        ...         [400, -11, 0.2],
+        ...         [350, -18, 0.15],
+        ...         [300, -27, 0.10],
+        ...         [250, -37, 0.11],
+        ...         [225, -43, 0.08],
+        ...         [200, -49, 0.05],
+        ...         [175, -57, 0.03],
+        ...         [150, -65, 0.014],
+        ...         [125, -73, 0.005],
+        ...         [100, -79, 0.003],
+        ...         [70, -73, 0.002],
+        ...         [50, -64, 0.002],
+        ...     ]
+        ... )
+        >>> P = level_data[:, 0]
+        >>> TC = level_data[:, 1]
+        >>> R = level_data[:, 2]
+        >>> VMAX, PMIN, IFL, TO, OTL = pi(SSTC, MSL, P, TC, R)
+        >>> print(f"VMAX: {VMAX}\nPMIN: {PMIN}\nIFL: {IFL}\nTO: {TO}\nOTL: {OTL}")
+        VMAX: 82.4845...
+        PMIN: 900.2039...
+        IFL: 1
+        TO: 197.1666...
+        OTL: 84.9169...
+
+    Exceptional cases:
+        - SST is missing, e.g. over land
+            >>> pi(np.nan, MSL, P, TC, R)
+            (nan, nan, 0, nan, nan)
+
+        - SST is given in Kelvin
+            >>> pi(300, MSL, P, TC, R)
+            (nan, nan, 0, nan, nan)
+
+        - Temperatures contain a nan
+            >>> nan_in_levels = np.zeros_like(P)
+            >>> nan_in_levels[5] = np.nan
+            >>> pi(SSTC, MSL, P, TC + nan_in_levels, R)
+            (nan, nan, 3, nan, nan)
+
+        - Mixing ratios contain a nan
+            >>> pi(SSTC, MSL, P, TC, R + nan_in_levels)
+            (82.4845..., 900.2039..., 1, 197.1666..., 84.9169...)
+    """
+    if outflow_source == "cape_star":
+        outflow_source_flag = 0
+    elif outflow_source == "cape_env":
+        outflow_source_flag = 1
+    else:
+        raise ValueError(
+            f"Invalid outflow_source={outflow_source!r}; expected 'cape_star' or 'cape_env'."
+        )
+
+    return _pi_numba(
+        SSTC,
+        MSL,
+        np.asarray(P),
+        np.asarray(TC),
+        np.asarray(R),
+        CKCD=CKCD,
+        ascent_flag=ascent_flag,
+        diss_flag=diss_flag,
+        V_reduc=V_reduc,
+        ptop=ptop,
+        miss_handle=miss_handle,
+        outflow_source_flag=outflow_source_flag,
+    )

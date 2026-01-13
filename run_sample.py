@@ -19,7 +19,7 @@ datdir='./data/'
 _FN=datdir+'sample_data.nc'
     
 
-def run_sample_dataset(fn, dim='p',CKCD=0.9):
+def run_sample_dataset(fn, dim='p',CKCD=0.9,outflow_source="cape_star"):
     """Calculate potential intensity over the sample dataset with xarray.
 
     Parameters
@@ -30,6 +30,8 @@ def run_sample_dataset(fn, dim='p',CKCD=0.9):
         Name of the vertical pressure coordinate in `fn`.
     CKCD : float, default=0.9
         Ratio of exchange coefficients (Ck/Cd).
+    outflow_source : {"cape_star", "cape_env"}, default="cape_star"
+        Which CAPE calculation supplies the outflow temperature and level.
 
     Returns
     -------
@@ -44,7 +46,14 @@ def run_sample_dataset(fn, dim='p',CKCD=0.9):
     result = xr.apply_ufunc(
         pi,
         ds['sst'], ds['msl'], ds[dim], ds['t'], ds['q'],
-        kwargs=dict(CKCD=CKCD, ascent_flag=0, diss_flag=1, ptop=50, miss_handle=1),
+        kwargs=dict(
+            CKCD=CKCD,
+            ascent_flag=0,
+            diss_flag=1,
+            ptop=50,
+            miss_handle=1,
+            outflow_source=outflow_source,
+        ),
         input_core_dims=[
             [], [], [dim, ], [dim, ], [dim, ],
         ],
