@@ -20,7 +20,23 @@ _FN=datdir+'sample_data.nc'
     
 
 def run_sample_dataset(fn, dim='p',CKCD=0.9):
-    """ This function calculates PI over the sample dataset using xarray """
+    """Calculate potential intensity over the sample dataset with xarray.
+
+    Parameters
+    ----------
+    fn : str
+        Path to the input dataset (e.g., `data/sample_data.nc`).
+    dim : str, default="p"
+        Name of the vertical pressure coordinate in `fn`.
+    CKCD : float, default=0.9
+        Ratio of exchange coefficients (Ck/Cd).
+
+    Returns
+    -------
+    xarray.Dataset
+        Dataset containing PI outputs (`vmax`, `pmin`, `ifl`, `t0`, `otl`) and the
+        state variables used in the calculation.
+    """
     
     # open the sample data file
     ds = xr.open_dataset(fn)
@@ -65,7 +81,20 @@ def run_sample_dataset(fn, dim='p',CKCD=0.9):
     return out_ds
 
 def run_sample_analyses(ds,CKCD=0.9):
-    """ This function performs PI analyses over the sample dataset using xarray """
+    """Compute analysis diagnostics (including log decomposition) on PI outputs.
+
+    Parameters
+    ----------
+    ds : xarray.Dataset
+        Output from :func:`run_sample_dataset`.
+    CKCD : float, default=0.9
+        Ratio of exchange coefficients (Ck/Cd).
+
+    Returns
+    -------
+    xarray.Dataset
+        Dataset of diagnostics: `eff`, `diseq`, `lnpi`, `lneff`, `lndiseq`, `lnCKCD`.
+    """
     
     # calculate PI analyses over the whole data set using the xarray universal function
     efficiency = xr.apply_ufunc(

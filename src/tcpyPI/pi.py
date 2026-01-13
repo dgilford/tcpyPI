@@ -55,38 +55,60 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
     Emanuel 1994 (E94) Equation 6.3.6 and TOB is the temperature at the
     level of neutral buoyancy ("LNB") for the displaced parcel.
 
-    Args:
-        TP (float): Parcel temperature (K)
-        RP (float): Parcel mixing ratio (gram/gram)
-        PP (float): Parcel pressure (hPa)
-        T (array): Environmental temperature profile (K)
-        R (array): Environmental mixing ratio profile (gram/gram)
-        P (array): Environmental pressure profile (hPa)
-            The arrays MUST be arranged so that the lowest index corresponds
-            to the lowest model level, with increasing index corresponding to
-            decreasing pressure.
-        ascent_flag (int, optional): Adjustable constant fraction for buoyancy of displaced parcels.
-            0 = Reversible ascent (default)
-            1 = Pseudo-adiabatic ascent.
-        ptop (float, optional): Pressure below which sounding is ignored (hPa). Defaults to 50.
-        miss_handle (int, optional): Flag for handling missing values.
-            0 = ignore NaN (BE02 default)
-                    NaN values in profile are ignored and PI is still calcuated.
-            1 = return missing values (pyPI default)
-                    given NaN values PI will be set to missing (with IFLAG=3)
-                    NOTE: If any missing values are between the lowest valid level and ptop
-                    then PI will automatically be set to missing (with IFLAG=3)
+    Parameters
+    ----------
+    TP : float
+        Parcel temperature (K).
+    RP : float
+        Parcel mixing ratio (gram/gram).
+    PP : float
+        Parcel pressure (hPa).
+    T : array
+        Environmental temperature profile (K).
+    R : array
+        Environmental mixing ratio profile (gram/gram).
+    P : array
+        Environmental pressure profile (hPa).
 
-    Returns:
-        tuple: (CAPED, TOB, LNB, IFLAG) where:
-            - CAPED (float): Convective Available Potential Energy (J/kg)
-            - TOB (float): Temperature at level of neutral buoyancy (K)
-            - LNB (float): Level of neutral buoyancy pressure (hPa)
-            - IFLAG (int): Status flag where:
-                1 = Success
-                0 = Improper sounding/parcel
-                2 = Did not converge
-                3 = Missing values in input profile
+        The arrays MUST be arranged so that the lowest index corresponds to the
+        lowest model level, with increasing index corresponding to decreasing
+        pressure.
+    ascent_flag : int, default=0
+        Adjustable constant fraction for buoyancy of displaced parcels.
+
+        - ``0``: reversible ascent
+        - ``1``: pseudo-adiabatic ascent
+    ptop : float, default=50
+        Pressure below which sounding is ignored (hPa).
+    miss_handle : int, default=1
+        Flag for handling missing values.
+
+        - ``0``: ignore NaN (BE02 default); NaNs in the profile are ignored and
+          CAPE may still be calculated.
+        - ``1``: return missing values (pyPI default); any NaNs set outputs to
+          missing with ``IFLAG=3``.
+
+        NOTE: If any missing values are between the lowest valid level and `ptop`,
+        outputs are set to missing with ``IFLAG=3`` regardless of `miss_handle`.
+
+    Returns
+    -------
+    tuple
+        ``(CAPED, TOB, LNB, IFLAG)`` where:
+
+        - CAPED : float
+            Convective available potential energy (J/kg).
+        - TOB : float
+            Temperature at level of neutral buoyancy (K).
+        - LNB : float
+            Level of neutral buoyancy pressure (hPa).
+        - IFLAG : int
+            Status flag:
+
+            - ``1``: success
+            - ``0``: improper sounding/parcel
+            - ``2``: did not converge
+            - ``3``: missing values in input profile
     """
     #
     #   ***  Handle missing values   ***
@@ -309,21 +331,34 @@ def solve_temperature_from_entropy(S, P, RP, T_initial):
     saturated entropy to find the temperature T that satisfies SG(T) = S for
     a target value of saturated entropy S.
 
-    Args:
-        S (float): Target saturated entropy (J/kg/K).
-        P (float): Ambient pressure (hPa).
-        RP (float): Parcel mixing ratio for the dry component (g/g).
-        T_initial (float): Initial guess for temperature (K).
+    Parameters
+    ----------
+    S : float
+        Target saturated entropy (J/kg/K).
+    P : float
+        Ambient pressure (hPa).
+    RP : float
+        Parcel mixing ratio for the dry component (g/g).
+    T_initial : float
+        Initial guess for temperature (K).
 
-    Returns:
-        tuple: (TG, RG, IFLAG) where:
-            TG (float): Temperature (K) satisfying SG(T) = S.
-            RG (float): Computed saturated mixing ratio (g/g).
-            IFLAG (int): Status flag where:
-                1 = Success
-                2 = Did not converge
+    Returns
+    -------
+    tuple
+        ``(TG, RG, IFLAG)`` where:
 
-    Examples:
+        - TG : float
+            Temperature (K) satisfying ``SG(T) = S``.
+        - RG : float
+            Computed saturated mixing ratio (g/g).
+        - IFLAG : int
+            Status flag:
+
+            - ``1``: success
+            - ``2``: did not converge
+
+    Examples
+    --------
         >>> S = 4000
         >>> P = 1000
         >>> RP = 0.01
@@ -408,61 +443,83 @@ def pi(SSTC,MSL,P,TC,R,CKCD=0.9,ascent_flag=0,diss_flag=1,V_reduc=0.8,ptop=50,mi
     Thermodynamic and dynamic technical backgrounds (and calculations) are found in 
     Bister and Emanuel (2002; BE02) and Emanuel's "Atmospheric Convection" (E94; 1994; ISBN: 978-0195066302).
     
-    Args:
-        SSTC (float): Sea surface temperature (C)
-        MSL (float): Mean sea level pressure (hPa)
-        P (array): Pressure levels (hPa)
-        TC (array): Temperature profile (C)
-        R (array): Mixing ratio profile (g/kg)
-            The arrays MUST be arranged so that the lowest index corresponds
-            to the lowest model level, with increasing index corresponding to
-            decreasing pressure. The temperature sounding should extend to at least
-            the tropopause and preferably to the lower stratosphere, however the
-            mixing ratios are not important above the boundary layer. Missing
-            mixing ratios can be replaced by zeros.
-        CKCD (float, optional): Ratio of C_k to C_D (unitless)
-            Defaults to 0.9
-            The ratio of the exchange coefficients of enthalpy and momentum flux
-            (e.g. see Bister and Emanuel 1998, EQN. 17-18). More discussion
-            on CK/CD is found in Emanuel (2003). Default is 0.9 based
-            on e.g. Wing et al. (2015)
-        ascent_flag (int, optional): Adjustable constant fraction for buoyancy (unitless)
-            0 = Reversible ascent (default)
-            1 = Pseudo-adiabatic ascent
-        diss_flag (int, optional): Switch for dissipative heating
-            1 = Allowed (default)
-            0 = Disallowed
-            See Bister and Emanuel (1998) for inclusion of dissipative heating.
-        V_reduc (float, optional): Reduction factor from gradient winds to 10m winds (unitless)
-            Defaults to 0.8.
-            See Emanuel (2000) and Powell (1980).
-        ptop (float, optional): Pressure below which sounding is ignored (hPa).
-            Defaults to 50.
-        miss_handle (int, optional): Flag for handling missing values.
-            0 = ignore NaN (BE02 default)
-                 NaN values in profile are ignored and PI is still calculated
-            1 = return missing values (pyPI default)
-                given NaN values PI will be set to missing (with IFL=3)
-                NOTE: If any missing values are between the lowest valid level and ptop
-                then PI will automatically be set to missing (with IFL=3)
+    Parameters
+    ----------
+    SSTC : float
+        Sea surface temperature (C).
+    MSL : float
+        Mean sea level pressure (hPa).
+    P : array
+        Pressure levels (hPa).
+    TC : array
+        Temperature profile (C).
+    R : array
+        Mixing ratio profile (g/kg).
 
-    Returns:
-        tuple: (VMAX, PMIN, IFL, TO, OTL) where:
-            - VMAX (float): Maximum surface wind speed (m/s)
-                reduced to reflect surface drag via V_reduc
-            - PMIN (float): Minimum central pressure (hPa)
-            - IFL (int): Status flag where:
-                1 = Success
-                0 = No convergence
-                2 = CAPE routine failed to converge
-                3 = CAPE routine failed due to missing data
-            - TO (float): Outflow temperature (K)
-            - OTL (float): Outflow temperature level (hPa)
-                Defined as the level of neutral bouyancy 
-                where the outflow temperature is found, i.e. where buoyancy is actually equal 
-                to zero under the condition of an air parcel that is saturated at sea level pressure
+        The arrays MUST be arranged so that the lowest index corresponds to the
+        lowest model level, with increasing index corresponding to decreasing
+        pressure. The temperature sounding should extend to at least the tropopause
+        and preferably to the lower stratosphere; mixing ratios are not important
+        above the boundary layer. Missing mixing ratios can be replaced by zeros.
+    CKCD : float, default=0.9
+        Ratio of C_k to C_D (unitless).
 
-    Example:
+        The ratio of the exchange coefficients of enthalpy and momentum flux
+        (e.g. see Bister and Emanuel 1998, EQN. 17-18). More discussion on Ck/Cd is
+        found in Emanuel (2003). Default is 0.9 based on e.g. Wing et al. (2015).
+    ascent_flag : int, default=0
+        Adjustable constant fraction for buoyancy (unitless).
+
+        - ``0``: reversible ascent
+        - ``1``: pseudo-adiabatic ascent
+    diss_flag : int, default=1
+        Switch for dissipative heating.
+
+        - ``1``: allowed
+        - ``0``: disallowed
+
+        See Bister and Emanuel (1998) for inclusion of dissipative heating.
+    V_reduc : float, default=0.8
+        Reduction factor from gradient winds to 10 m winds (unitless).
+        See Emanuel (2000) and Powell (1980).
+    ptop : float, default=50
+        Pressure below which sounding is ignored (hPa).
+    miss_handle : int, default=1
+        Flag for handling missing values.
+
+        - ``0``: ignore NaN (BE02 default); NaN values in the profile are ignored
+          and PI may still be calculated.
+        - ``1``: return missing values (pyPI default); any NaNs set outputs to
+          missing with ``IFL=3``.
+
+        NOTE: If any missing values are between the lowest valid level and `ptop`,
+        outputs are set to missing with ``IFL=3`` regardless of `miss_handle`.
+
+    Returns
+    -------
+    tuple
+        ``(VMAX, PMIN, IFL, TO, OTL)`` where:
+
+        - VMAX : float
+            Maximum surface wind speed (m/s), reduced by `V_reduc`.
+        - PMIN : float
+            Minimum central pressure (hPa).
+        - IFL : int
+            Status flag:
+
+            - ``1``: success
+            - ``0``: no convergence
+            - ``2``: CAPE routine failed to converge
+            - ``3``: CAPE routine failed due to missing data
+        - TO : float
+            Outflow temperature (K).
+        - OTL : float
+            Outflow temperature level (hPa), defined as the level of neutral buoyancy
+            where the outflow temperature is found (buoyancy equal to zero for a parcel
+            saturated at sea level pressure).
+
+    Examples
+    --------
         >>> SSTC = 30
         >>> MSL = 1010
         >>> level_data = np.array(
