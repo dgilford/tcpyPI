@@ -12,15 +12,15 @@ Notes
 
 from __future__ import annotations
 
-from typing import Any, Dict, Literal, Tuple
+from typing import Any, Dict, Tuple, Union
 
 import numpy as np
 
 
-_SSTUnits = Literal["C", "K"]
+_SSTUnits = str
 
 
-def _maybe_scalar(value: np.ndarray | float) -> Any:
+def _maybe_scalar(value: Union[np.ndarray, float]) -> Any:
     return float(value) if np.ndim(value) == 0 else value
 
 
