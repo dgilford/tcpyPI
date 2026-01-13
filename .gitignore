@@ -7,6 +7,7 @@ dist/
 
 # Jupyter
 .ipynb_checkpoints
+.pytest_cache/
 
 # Environment
 .env
@@ -26,3 +27,7 @@ Thumbs.db
 # Data
 *.nc
 !data/*.nc
+
+# Local agent/dev artifacts (not tracked)
+AGENTS.md
+notebooks/recreate_numerical_instability.ipynb

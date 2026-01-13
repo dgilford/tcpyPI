@@ -10,3 +10,6 @@ __author__ = "Daniel M. Gilford <dgilford@climatecentral.org>"
 from .pi import *
 from .constants import *
 from .utilities import *
+
+# User-facing analyses API
+from .analyses import log_decompose_pi, pi_log_decomposition

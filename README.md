@@ -69,6 +69,17 @@ Users who want to apply the PI calculation to a set of local environmental condi
 (VMAX,PMIN,IFL,TO,LNB)=pi(SST,MSL,P,T,R)
 ```
 
+### Log Decomposition (Wing et al. 2015)
+
+tcpyPI provides a simple API for log-decomposing PI into efficiency, disequilibrium, and `Ck/Cd` terms (where `lnpi = ln(V^2)`):
+
+```python
+from tcpyPI import log_decompose_pi, pi_log_decomposition
+
+out = pi_log_decomposition(SSTC, MSL, P, TC, R, CKCD=0.9)  # SSTC/TC in Celsius
+lnpi, lneff, lndiseq, lnCKCD = log_decompose_pi(out["vmax"], SSTC, out["t0"], CKCD=0.9, sst_units="C")
+```
+
 ### Running a pyPI Sample
 
 Included in the pyPI release is a sample script [run_sample.py](run_sample.py) which runs global sample data from MERRA2 (in 2004) through pi.py, vectorizes the output, and performs several simple analyses. To run, simply:
