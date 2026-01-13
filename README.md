@@ -69,6 +69,28 @@ Users who want to apply the PI calculation to a set of local environmental condi
 (VMAX,PMIN,IFL,TO,LNB)=pi(SST,MSL,P,T,R)
 ```
 
+### Sensitivity & Configuration Options
+
+`tcpyPI.pi()` exposes a few key “sensitivity knobs” that can materially change results. The most commonly explored options are:
+
+- `CKCD` (default `0.9`): exchange coefficient ratio (`Ck/Cd`).
+- `diss_flag` (default `1`): include (`1`) or exclude (`0`) dissipative heating.
+- `ascent_flag` (default `0`): reversible (`0`) vs pseudo-adiabatic (`1`) ascent assumption.
+- `V_reduc` (default `0.8`): reduction from gradient wind to 10 m wind speed.
+- `ptop` (default `50` hPa): top pressure bound; setting too high can bias outflow level/temperature.
+- `miss_handle` (default `1`): missing-profile handling; `1` returns missing on any NaNs.
+- `outflow_source` (default `"cape_star"`): how outflow level/temperature are defined:
+  - `"cape_star"`: outflow is the LNB (`OTL`) and temperature (`T0`) from the saturated CAPE* calculation (default; BE02/pcmin behavior).
+  - `"cape_env"`: outflow is the LNB and temperature from the environmental CAPE (CAPEenv) on the final convergence iteration (see Gilford et al. 2021 discussion).
+
+Example:
+
+```python
+from tcpyPI import pi
+
+vmax, pmin, ifl, t0, otl = pi(SSTC, MSL, P, TC, R, CKCD=0.9, diss_flag=1, outflow_source="cape_env")
+```
+
 ### Log Decomposition (Wing et al. 2015)
 
 tcpyPI provides a simple API for log-decomposing PI into efficiency, disequilibrium, and `Ck/Cd` terms (where `lnpi = ln(V^2)`):
