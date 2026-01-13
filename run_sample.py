@@ -11,8 +11,8 @@
 import xarray as xr
 
 # load in pyPI modules
-from tcpyPI import pi
-from tcpyPI.utilities import *
+from tcpyPI import pi, log_decompose_pi
+from tcpyPI.utilities import pi_efficiency, pi_diseq_resid
 
 # define the sample data locations
 datdir='./data/'
@@ -94,9 +94,9 @@ def run_sample_analyses(ds,CKCD=0.9):
     )
     
     result = xr.apply_ufunc(
-        decompose_pi,
+        log_decompose_pi,
         ds['vmax'], ds['sst']+273.15, ds['t0'],
-        kwargs=dict(CKCD=CKCD),
+        kwargs=dict(CKCD=CKCD, sst_units="K"),
         input_core_dims=[
             [], [], [],
         ],
