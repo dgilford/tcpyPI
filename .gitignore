@@ -31,3 +31,6 @@ Thumbs.db
 # Local agent/dev artifacts (not tracked)
 AGENTS.md
 notebooks/recreate_numerical_instability.ipynb
+
+# Local reference papers (not tracked)
+papers/

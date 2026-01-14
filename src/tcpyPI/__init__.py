@@ -13,3 +13,7 @@ from .utilities import *
 
 # User-facing analyses API
 from .analyses import log_decompose_pi, pi_log_decomposition
+
+# Ventilation Index (TE12) diagnostics
+from .vi import ventilation_index, vi
+from .vi import entropy_deficit_te12, entropy_deficit_te12_from_profile
