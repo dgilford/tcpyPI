@@ -131,6 +131,43 @@ Key options:
 
 See `notebooks/ventilation_index_demo.ipynb` for a step-by-step worked example and visualization.
 
+### Power Dissipation Index (PDI) (EXPERIMENTAL)
+
+tcpyPI includes an **experimental** Power Dissipation Index (PDI) utility for storm-track time series:
+
+```python
+import tcpyPI
+
+# Vmax time series (example: m/s) and time step (example: hours)
+PDI = tcpyPI.power_dissipation_index(
+    vmax_series,
+    dt_hours,
+    wind_units="m/s",    # or "kt"
+    dt_units="h",        # or "s"
+    formulation="e05_si" # or "e05_1e11" (scaled for plotting)
+)
+```
+
+Options:
+- `nan_policy`: `"propagate"` (default) returns NaN if any timestep is missing; `"omit"` drops missing contributions.
+- `dt` may be a scalar (constant timestep) or an array broadcastable to `vmax_series` (variable timestep).
+
+See `notebooks/power_dissipation_index_demo.ipynb` for an end-to-end example using observed intensity from IBTrACS (Hurricane Milton, 2024) and computing PDI.
+
+### Relative Intensity (ν)
+
+tcpyPI provides a small helper for **relative intensity**, commonly defined as:
+
+$$\\nu(t) = V_{\\max}(t) / V_{PI}(t)$$
+
+Example:
+
+```python
+import tcpyPI
+
+nu = tcpyPI.relative_intensity(vmax_series, vpi_series)
+```
+
 ### Running a pyPI Sample
 
 Included in the pyPI release is a sample script [run_sample.py](run_sample.py) which runs global sample data from MERRA2 (in 2004) through pi.py, vectorizes the output, and performs several simple analyses. To run, simply:
@@ -156,11 +193,13 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 * **[verify_pi.ipynb](./notebooks/verify_pi.ipynb)** - Notebook validating/verifying pyPI outputs against BE02 MATLAB output data
 * **[sample_output_analyses.ipynb](./notebooks/sample_output_analyses.ipynb)** - Notebook showing examples of pyPI outputs and simple PI analyses
 * **[ventilation_index_demo.ipynb](./notebooks/ventilation_index_demo.ipynb)** - Experimental TE12 ventilation index: end-to-end calculation and diagnostics
+* **[power_dissipation_index_demo.ipynb](./notebooks/power_dissipation_index_demo.ipynb)** - Experimental PDI: synthetic track + PI-derived winds + integrated PDI
 
 #### Misc.
 * **[utilities.py](./src/tcpyPI/utilities.py)** - Set of functions used in the pyPI codebase
 * **[constants.py](./src/tcpyPI/constants.py)** - Set of meteorological constants used in the pyPI codebase
 * **[vi.py](./src/tcpyPI/vi.py)** - Experimental TE12 ventilation index and entropy deficit utilities
+* **[pdi.py](./src/tcpyPI/pdi.py)** - Experimental power dissipation index utility
 * **[reference_calculations.m](./matlab_scripts/reference_calculations.m)** - Script used to generate sample BE02 MATLAB output data from original MERRA2 files monthly mean; included for posterity and transparency
 * **[pc_min.m](./matlab_scripts/pc_min.m)** - Original BE02 algorithm from MATLAB, adapted and used to produce analyses of Gilford et al. ([2017](https://journals.ametsoc.org/doi/abs/10.1175/JCLI-D-16-0827.1); [2019](https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1))
 * **[clock_pypi.ipynb](./notebooks/clock_pypi.ipynb)** - Notebook estimating the time it takes to run pyPI on a laptop

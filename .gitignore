@@ -34,3 +34,6 @@ notebooks/recreate_numerical_instability.ipynb
 
 # Local reference papers (not tracked)
 papers/
+
+# Large external datasets (download locally, do not commit)
+data/IBTrACS*.nc
