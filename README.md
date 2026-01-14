@@ -106,6 +106,15 @@ lnpi, lneff, lndiseq, lnCKCD = log_decompose_pi(out["vmax"], SSTC, out["t0"], CK
 
 tcpyPI includes an **experimental** implementation of the Tang & Emanuel (2012) ventilation index:
 
+Equations (TE12):
+
+$$\\Lambda = \\left(\\frac{V_{\\mathrm{shear}}}{V_{PI}}\\right)\\,\\chi_m$$
+
+$$\\chi_m = \\frac{s_m^* - s_m}{s_{SST}^* - s_b}$$
+
+where $V_{\\mathrm{shear}}$ is the 850–200 hPa shear magnitude (m/s), $V_{PI}$ is potential intensity (m/s),
+and $s_m^*, s_m, s_{SST}^*, s_b$ are moist entropies (e.g., J kg$^{-1}$ K$^{-1}$) defined in TE12.
+
 ```python
 import tcpyPI
 
@@ -135,6 +144,14 @@ See `notebooks/ventilation_index_demo.ipynb` for a step-by-step worked example a
 
 tcpyPI includes an **experimental** Power Dissipation Index (PDI) utility for storm-track time series:
 
+Equations (Emanuel 2005):
+
+$$\\mathrm{PDI} = \\sum_{t} V_{\\max}(t)^3\\,\\Delta t$$
+
+where $V_{\\max}$ is the maximum sustained wind speed and $\\Delta t$ is the time step. The
+`"e05_si"` formulation returns the SI-consistent sum (e.g., m$^3$ s$^{-2}$ if $V$ is m/s and $\\Delta t$ is s),
+and `"e05_1e11"` returns `PDI / 1e11` for plotting convenience.
+
 ```python
 import tcpyPI
 
@@ -160,6 +177,8 @@ tcpyPI provides a small helper for **relative intensity**, commonly defined as:
 
 $$\\nu(t) = V_{\\max}(t) / V_{PI}(t)$$
 
+where $\\nu$ is unitless, $V_{\\max}$ is the storm intensity, and $V_{PI}$ is the local potential intensity.
+
 Example:
 
 ```python
@@ -171,6 +190,19 @@ nu = tcpyPI.relative_intensity(vmax_series, vpi_series)
 ### Genesis Potential Index (GPI) (EXPERIMENTAL)
 
 tcpyPI includes an **experimental** Genesis Potential Index (GPI) utility:
+
+Equations (as implemented here; see Emanuel & Nolan 2004; Camargo et al. 2007):
+
+For `"en04"`:
+
+$$\\mathrm{GPI} = \\left(10^5\\,|\\eta|\\right)^3\\,\\left(\\frac{\\mathrm{RH}}{50}\\right)^3\\,\\left(\\frac{V_{PI}}{70}\\right)^3\\,\\left(1 + 0.1\\,V_{\\mathrm{shear}}\\right)^{-2}$$
+
+For `"c07"` (PI-thresholded variant):
+
+$$\\mathrm{GPI} = \\left(10^5\\,|\\eta|\\right)^3\\,\\left(\\frac{\\mathrm{RH}}{50}\\right)^3\\,\\left(\\frac{\\max(V_{PI}-35,\\,0)}{70}\\right)^3\\,\\left(1 + 0.1\\,V_{\\mathrm{shear}}\\right)^{-2}$$
+
+where $|\\eta|$ is low-level absolute vorticity (s$^{-1}$; commonly 850 hPa), RH is midlevel relative humidity (%; commonly 700 hPa),
+$V_{\\mathrm{shear}}$ is deep-layer shear magnitude (m/s; commonly 850–200 hPa), and $V_{PI}$ is potential intensity (m/s).
 
 ```python
 import tcpyPI
