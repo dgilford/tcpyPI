@@ -102,6 +102,35 @@ out = pi_log_decomposition(SSTC, MSL, P, TC, R, CKCD=0.9)  # SSTC/TC in Celsius
 lnpi, lneff, lndiseq, lnCKCD = log_decompose_pi(out["vmax"], SSTC, out["t0"], CKCD=0.9, sst_units="C")
 ```
 
+### Ventilation Index (Tang & Emanuel 2012) (EXPERIMENTAL)
+
+tcpyPI includes an **experimental** implementation of the Tang & Emanuel (2012) ventilation index:
+
+```python
+import tcpyPI
+
+# χm from a thermodynamic profile (TE12 Eq. 2)
+chi_m = tcpyPI.entropy_deficit_te12_from_profile(
+    P, TC, R, T_units="C", q_units="g/kg",
+    SST=SSTC, SST_units="C", psfc_hpa=MSL,
+    T2m=TC[0], q2m=R[0],
+    entropy_method="emanuel94",                # or "bryan2008" (TE12-consistent)
+    s_m_star_source="env_T_at_pmid",           # or "moist_adiabat_from_sst"
+    sb_source="t2m",                           # or "layer_1000_900", "lowest_level"
+    p_mid_hpa=600.0,
+)
+
+# Λ from shear and PI (TE12 Eq. 1)
+Lambda = tcpyPI.ventilation_index(u_shear, VMAX, chi_m, formulation="te12")
+```
+
+Key options:
+- `entropy_method`: `"emanuel94"` (default; consistent with most of tcpyPI) or `"bryan2008"` (matches TE12 Eq. 3).
+- `s_m_star_source`: `"env_T_at_pmid"` (default) or `"moist_adiabat_from_sst"` (saturated parcel lifted from SST to `p_mid_hpa`).
+- `sb_source`: `"t2m"` (default; uses `T2m/q2m` at `psfc_hpa`), with fallbacks available via `sb_fallback`.
+
+See `notebooks/ventilation_index_demo.ipynb` for a step-by-step worked example and visualization.
+
 ### Running a pyPI Sample
 
 Included in the pyPI release is a sample script [run_sample.py](run_sample.py) which runs global sample data from MERRA2 (in 2004) through pi.py, vectorizes the output, and performs several simple analyses. To run, simply:
@@ -126,10 +155,12 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 * **[test_pi_calc.ipynb](./notebooks/test_pi_calc.ipynb)** - Simple code showing a single call of pi.py and testing the speed of the algorithm
 * **[verify_pi.ipynb](./notebooks/verify_pi.ipynb)** - Notebook validating/verifying pyPI outputs against BE02 MATLAB output data
 * **[sample_output_analyses.ipynb](./notebooks/sample_output_analyses.ipynb)** - Notebook showing examples of pyPI outputs and simple PI analyses
+* **[ventilation_index_demo.ipynb](./notebooks/ventilation_index_demo.ipynb)** - Experimental TE12 ventilation index: end-to-end calculation and diagnostics
 
 #### Misc.
 * **[utilities.py](./src/tcpyPI/utilities.py)** - Set of functions used in the pyPI codebase
 * **[constants.py](./src/tcpyPI/constants.py)** - Set of meteorological constants used in the pyPI codebase
+* **[vi.py](./src/tcpyPI/vi.py)** - Experimental TE12 ventilation index and entropy deficit utilities
 * **[reference_calculations.m](./matlab_scripts/reference_calculations.m)** - Script used to generate sample BE02 MATLAB output data from original MERRA2 files monthly mean; included for posterity and transparency
 * **[pc_min.m](./matlab_scripts/pc_min.m)** - Original BE02 algorithm from MATLAB, adapted and used to produce analyses of Gilford et al. ([2017](https://journals.ametsoc.org/doi/abs/10.1175/JCLI-D-16-0827.1); [2019](https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1))
 * **[clock_pypi.ipynb](./notebooks/clock_pypi.ipynb)** - Notebook estimating the time it takes to run pyPI on a laptop
