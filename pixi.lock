@@ -7487,8 +7487,8 @@ packages:
   timestamp: 1732982860332
 - pypi: .
   name: tcpypi
-  version: 1.5.dev24+g429b2ab.d20260114
-  sha256: c024744afc992523c92f68eb7568501f7e4b4f44ac2f0e3952368a9501f17669
+  version: 1.5.dev29+g72d4f7f.d20260114
+  sha256: 52ff231fb23d788ed4cef9f6936af617514495d1deae66092b720af3b7e7e445
   requires_dist:
   - numba>=0.51.2
   - numpy>=1.19.5

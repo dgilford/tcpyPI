@@ -71,7 +71,7 @@ pytest = "*"
 pytest-xdist = "*"
 
 [tool.pixi.feature.test.tasks]
-basic-tests = "python -m pytest -n auto --ignore run_sample.py --ignore tests/test_run_sample.py"
+basic-tests = "python -m pytest -n auto --ignore run_sample.py --ignore tests/test_run_sample.py --ignore data"
 xarray-tests = "python -m pytest -n auto tests/test_run_sample.py"
 
 [tool.pixi.feature.old-dependency-versions]
