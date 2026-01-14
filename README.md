@@ -168,6 +168,29 @@ import tcpyPI
 nu = tcpyPI.relative_intensity(vmax_series, vpi_series)
 ```
 
+### Genesis Potential Index (GPI) (EXPERIMENTAL)
+
+tcpyPI includes an **experimental** Genesis Potential Index (GPI) utility:
+
+```python
+import tcpyPI
+
+# Inputs (typical choices):
+# - abs_vort: |η| at ~850 hPa (s^-1)
+# - rh_mid: RH at ~700 hPa (%)
+# - v_shear: 850–200 hPa shear magnitude (m/s)
+# - v_pot: potential intensity (m/s), e.g. from tcpyPI.pi()
+
+gpi_en04 = tcpyPI.genesis_potential_index(abs_vort, rh_mid, v_shear, v_pot, formulation="en04")
+gpi_c07 = tcpyPI.genesis_potential_index(abs_vort, rh_mid, v_shear, v_pot, formulation="c07")
+```
+
+Formulations:
+- `"en04"`: Emanuel & Nolan (2004)-style
+- `"c07"`: Camargo et al. (2007)-style variant with PI thresholding
+
+See `notebooks/genesis_potential_index_demo.ipynb` for an end-to-end worked example.
+
 ### Running a pyPI Sample
 
 Included in the pyPI release is a sample script [run_sample.py](run_sample.py) which runs global sample data from MERRA2 (in 2004) through pi.py, vectorizes the output, and performs several simple analyses. To run, simply:
@@ -194,12 +217,14 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 * **[sample_output_analyses.ipynb](./notebooks/sample_output_analyses.ipynb)** - Notebook showing examples of pyPI outputs and simple PI analyses
 * **[ventilation_index_demo.ipynb](./notebooks/ventilation_index_demo.ipynb)** - Experimental TE12 ventilation index: end-to-end calculation and diagnostics
 * **[power_dissipation_index_demo.ipynb](./notebooks/power_dissipation_index_demo.ipynb)** - Experimental PDI: synthetic track + PI-derived winds + integrated PDI
+* **[genesis_potential_index_demo.ipynb](./notebooks/genesis_potential_index_demo.ipynb)** - Experimental GPI: worked example and sensitivities
 
 #### Misc.
 * **[utilities.py](./src/tcpyPI/utilities.py)** - Set of functions used in the pyPI codebase
 * **[constants.py](./src/tcpyPI/constants.py)** - Set of meteorological constants used in the pyPI codebase
 * **[vi.py](./src/tcpyPI/vi.py)** - Experimental TE12 ventilation index and entropy deficit utilities
 * **[pdi.py](./src/tcpyPI/pdi.py)** - Experimental power dissipation index utility
+* **[gpi.py](./src/tcpyPI/gpi.py)** - Experimental genesis potential index utility
 * **[reference_calculations.m](./matlab_scripts/reference_calculations.m)** - Script used to generate sample BE02 MATLAB output data from original MERRA2 files monthly mean; included for posterity and transparency
 * **[pc_min.m](./matlab_scripts/pc_min.m)** - Original BE02 algorithm from MATLAB, adapted and used to produce analyses of Gilford et al. ([2017](https://journals.ametsoc.org/doi/abs/10.1175/JCLI-D-16-0827.1); [2019](https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1))
 * **[clock_pypi.ipynb](./notebooks/clock_pypi.ipynb)** - Notebook estimating the time it takes to run pyPI on a laptop
