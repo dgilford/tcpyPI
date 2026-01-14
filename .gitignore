@@ -37,3 +37,6 @@ papers/
 
 # Large external datasets (download locally, do not commit)
 data/IBTrACS*.nc
+
+# Local session/handoff notes (not tracked)
+SESSION_NOTES.md
