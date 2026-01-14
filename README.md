@@ -113,7 +113,7 @@ $$\Lambda = \left(\frac{V_{\mathrm{shear}}}{V_{PI}}\right)\,\chi_m$$
 $$\chi_m = \frac{s_m^* - s_m}{s_{SST}^* - s_b}$$
 
 where $V_{\mathrm{shear}}$ is the 850–200 hPa shear magnitude (m/s), $V_{PI}$ is potential intensity (m/s),
-and $s_m^*, s_m, s_{SST}^*, s_b$ are moist entropies (e.g., $J\,kg^{-1}\,K^{-1}$) defined in TE12.
+and $s_m^{\ast}, s_m, s_{SST}^{\ast}, s_b$ are moist entropies (e.g., $J\,kg^{-1}\,K^{-1}$) defined in TE12.
 
 ```python
 import tcpyPI
