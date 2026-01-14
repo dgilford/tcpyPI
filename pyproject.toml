@@ -89,6 +89,7 @@ h5netcdf = "*"
 
 [tool.pixi.feature.notebook.dependencies]
 ipykernel = "*"
+matplotlib = "*"
 
 [tool.pixi.target.osx-64.dependencies]
 # Workaround for duplicate LD_RPATH issue on MacOS 15.4

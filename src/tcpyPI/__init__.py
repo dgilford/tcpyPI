@@ -20,3 +20,9 @@ from .vi import entropy_deficit_te12, entropy_deficit_te12_from_profile
 
 # Power Dissipation Index (PDI) (EXPERIMENTAL)
 from .pdi import power_dissipation_index, pdi
+
+# Relative intensity
+from .relative_intensity import relative_intensity
+
+# Genesis Potential Index (GPI) (EXPERIMENTAL)
+from .gpi import genesis_potential_index, gpi
