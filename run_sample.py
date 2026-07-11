@@ -19,8 +19,9 @@ if _SRC_DIR.is_dir():
     sys.path.insert(0, str(_SRC_DIR))
 
 # load in pyPI modules
-from tcpyPI import pi_field, pi_log_decomposition
+from tcpyPI import pi_log_decomposition
 from tcpyPI.utilities import pi_diseq_resid, pi_efficiency
+from tcpyPI.xarray import pi_dataset
 
 # define the sample data locations
 datdir = "./data/"
@@ -50,73 +51,13 @@ def run_sample_dataset(fn, dim="p", CKCD=0.9, outflow_source="cape_star"):
 
     # open the sample data file
     ds = xr.open_dataset(fn)
-    # calculate PI over the whole dataset in one whole-field call: pi_field is a
-    # compiled, multithreaded generalized ufunc (same per-column math as pi()),
-    # so no `vectorize=True` per-column Python loop is needed.
-    result = xr.apply_ufunc(
-        pi_field,
-        ds["sst"],
-        ds["msl"],
-        ds[dim],
-        ds["t"],
-        ds["r"],
-        kwargs=dict(
-            CKCD=CKCD,
-            ascent_flag=0,
-            diss_flag=1,
-            ptop=50,
-            miss_handle=1,
-            outflow_source=outflow_source,
-        ),
-        input_core_dims=[
-            [],
-            [],
-            [
-                dim,
-            ],
-            [
-                dim,
-            ],
-            [
-                dim,
-            ],
-        ],
-        output_core_dims=[[], [], [], [], []],
-    )
+    # calculate PI over the whole dataset in one whole-field call (tcpyPI.xarray
+    # wraps pi_field, a compiled multithreaded generalized ufunc, so no
+    # `vectorize=True` per-column Python loop is needed)
+    out_ds = pi_dataset(ds, dim=dim, CKCD=CKCD, outflow_source=outflow_source)
 
-    # store the result in an xarray data structure
-    vmax, pmin, ifl, t0, otl = result
-    out_ds = xr.Dataset(
-        {
-            "vmax": vmax,
-            "pmin": pmin,
-            "ifl": ifl,
-            "t0": t0,
-            "otl": otl,
-            # merge the state data into the same data structure
-            "sst": ds.sst,
-            "t": ds.t,
-            "r": ds.r,
-            "msl": ds.msl,
-            "lsm": ds.lsm,
-        }
-    )
-
-    # add names and units to the structure
-    out_ds.vmax.attrs["standard_name"], out_ds.vmax.attrs["units"] = (
-        "Maximum Potential Intensity",
-        "m/s",
-    )
-    out_ds.pmin.attrs["standard_name"], out_ds.pmin.attrs["units"] = (
-        "Minimum Central Pressure",
-        "hPa",
-    )
-    out_ds.ifl.attrs["standard_name"] = "pyPI Flag"
-    out_ds.t0.attrs["standard_name"], out_ds.t0.attrs["units"] = "Outflow Temperature", "K"
-    out_ds.otl.attrs["standard_name"], out_ds.otl.attrs["units"] = (
-        "Outflow Temperature Level",
-        "hPa",
-    )
+    # merge the state data into the same data structure
+    out_ds = out_ds.assign(sst=ds.sst, t=ds.t, r=ds.r, msl=ds.msl, lsm=ds.lsm)
 
     # return the output from pi.py as an xarray data structure
     return out_ds
