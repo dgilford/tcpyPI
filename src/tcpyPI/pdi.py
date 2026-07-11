@@ -119,4 +119,3 @@ def power_dissipation_index(
 
 # Short alias matching the module name.
 pdi = power_dissipation_index
-

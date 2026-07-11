@@ -5,9 +5,9 @@ import tcpyPI
 
 def test_gpi_en04_scalar_matches_hand_calc():
     abs_vort = 2.0e-5  # s^-1
-    rh_mid = 60.0      # %
-    v_shear = 10.0     # m/s
-    v_pot = 60.0       # m/s
+    rh_mid = 60.0  # %
+    v_shear = 10.0  # m/s
+    v_pot = 60.0  # m/s
 
     eta = 1.0e5 * abs_vort
     rh = rh_mid / 50.0
@@ -22,9 +22,9 @@ def test_gpi_en04_scalar_matches_hand_calc():
 def test_gpi_e10_scalar_matches_hand_calc():
     # Emanuel (2010, JAMES, Eq. 11): |eta|^3 chi^-4/3 max(Vp-35,0)^2 (25+Vshear)^-4
     abs_vort = 5.0e-5  # s^-1
-    chi = 1.2          # nondimensional midlevel entropy deficit
-    v_shear = 10.0     # m/s
-    v_pot = 60.0       # m/s
+    chi = 1.2  # nondimensional midlevel entropy deficit
+    v_shear = 10.0  # m/s
+    v_pot = 60.0  # m/s
 
     expected = (
         (abs(abs_vort) ** 3.0)
@@ -40,23 +40,17 @@ def test_gpi_e10_scalar_matches_hand_calc():
 
 def test_gpi_e10_threshold_invalid_chi_and_missing_chi():
     # V_pot below the 35 m/s threshold -> exactly zero.
-    z = tcpyPI.genesis_potential_index(
-        5.0e-5, v_shear=10.0, v_pot=30.0, formulation="e10", chi=1.2
-    )
+    z = tcpyPI.genesis_potential_index(5.0e-5, v_shear=10.0, v_pot=30.0, formulation="e10", chi=1.2)
     assert z == 0.0
 
     # Non-positive chi (entropy deficit) -> NaN (chi^-4/3 undefined).
     assert np.isnan(
-        tcpyPI.genesis_potential_index(
-            5.0e-5, v_shear=10.0, v_pot=60.0, formulation="e10", chi=0.0
-        )
+        tcpyPI.genesis_potential_index(5.0e-5, v_shear=10.0, v_pot=60.0, formulation="e10", chi=0.0)
     )
 
     # e10 without chi raises.
     with np.testing.assert_raises(ValueError):
-        tcpyPI.genesis_potential_index(
-            5.0e-5, v_shear=10.0, v_pot=60.0, formulation="e10"
-        )
+        tcpyPI.genesis_potential_index(5.0e-5, v_shear=10.0, v_pot=60.0, formulation="e10")
 
 
 def test_gpi_broadcasting_and_invalid_inputs():
@@ -84,9 +78,7 @@ def test_gpi_broadcasting_and_invalid_inputs():
     np.testing.assert_allclose(out2[0], pos, rtol=0, atol=0)
 
     # NaN vorticity still yields NaN.
-    assert np.isnan(
-        tcpyPI.genesis_potential_index(np.nan, 60.0, 10.0, 60.0, formulation="en04")
-    )
+    assert np.isnan(tcpyPI.genesis_potential_index(np.nan, 60.0, 10.0, 60.0, formulation="en04"))
 
     with np.testing.assert_raises(ValueError):
         tcpyPI.genesis_potential_index(2.0e-5, 60.0, 10.0, 60.0, formulation="nope")

@@ -47,20 +47,20 @@ ptop : float
 #
 
 # Thermodynamic Constants
-CPD = 1005.7        # [J/kg/K] Specific heat of dry air at constant pressure
-CPV = 1870.0        # [J/kg/K] Specific heat of water vapor at constant pressure
+CPD = 1005.7  # [J/kg/K] Specific heat of dry air at constant pressure
+CPV = 1870.0  # [J/kg/K] Specific heat of water vapor at constant pressure
 # CL = 4190.0       # [J/kg/K] Specific heat of liquid water (physical value; unused)
-CL = 2500.0         # [J/kg/K] Modified specific heat of liquid water (Emanuel/pcmin value)
-CPVMCL = CPV - CL   # [J/kg/K] CPV - CL
-RV = 461.5          # [J/kg/K] gas constant of water vapor
-RD = 287.04         # [J/kg/K] gas constant of dry air
-EPS = RD / RV       # [unitless] epsilon, the ratio of gas constants (~0.622)
-ALV0 = 2.501e6      # [J/kg] latent heat of vaporization at 0 degrees C
+CL = 2500.0  # [J/kg/K] Modified specific heat of liquid water (Emanuel/pcmin value)
+CPVMCL = CPV - CL  # [J/kg/K] CPV - CL
+RV = 461.5  # [J/kg/K] gas constant of water vapor
+RD = 287.04  # [J/kg/K] gas constant of dry air
+EPS = RD / RV  # [unitless] epsilon, the ratio of gas constants (~0.622)
+ALV0 = 2.501e6  # [J/kg] latent heat of vaporization at 0 degrees C
 
 # pLCL Empirical Parameters (E94 4.6.24; see utilities.e_pLCL)
-A = 1669.0          # [unitless] empirical LCL-pressure parameter
-B = 122.0           # [unitless] empirical LCL-pressure parameter
+A = 1669.0  # [unitless] empirical LCL-pressure parameter
+B = 122.0  # [unitless] empirical LCL-pressure parameter
 
 # PI Auxiliaries
-b = 2.0             # [unitless] azimuthal-velocity exponent, V=V_m(r/r_m)**b (Emanuel 1995, Eq. 25)
-ptop = 50           # [hPa] default pressure below which the sounding is ignored
+b = 2.0  # [unitless] azimuthal-velocity exponent, V=V_m(r/r_m)**b (Emanuel 1995, Eq. 25)
+ptop = 50  # [hPa] default pressure below which the sounding is ignored

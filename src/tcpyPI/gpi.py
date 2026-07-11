@@ -21,7 +21,7 @@ magnitudes comparatively (spatially/seasonally), not absolutely.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
@@ -39,9 +39,9 @@ def _gpi_en04_numba(abs_vort, rh_mid, v_shear, v_pot):
 
     # Published GPIs use the magnitude |eta| (e.g. |1e5 eta|^{3/2}), so take abs()
     # to accept signed absolute vorticity (f+zeta is negative in the S. Hemisphere).
-    eta = 1.0e5 * abs(abs_vort)   # scaled to O(1) for typical tropical values
-    rh = rh_mid / 50.0            # normalize humidity
-    vp = v_pot / 70.0             # normalize potential intensity
+    eta = 1.0e5 * abs(abs_vort)  # scaled to O(1) for typical tropical values
+    rh = rh_mid / 50.0  # normalize humidity
+    vp = v_pot / 70.0  # normalize potential intensity
     shear_term = (1.0 + 0.1 * v_shear) ** (-2.0)  # stronger shear reduces genesis
     return (eta**1.5) * (rh**3.0) * (vp**3.0) * shear_term
 
@@ -98,7 +98,7 @@ def genesis_potential_index(
     v_pot: Any = None,
     *,
     formulation: str = "en04",
-    chi: Optional[Any] = None,
+    chi: Any | None = None,
 ):
     """Compute the Genesis Potential Index (GPI).
 
@@ -167,9 +167,7 @@ def genesis_potential_index(
             raise ValueError("v_shear and v_pot are required.")
         return _broadcast_apply(_gpi_e10_numba, abs_vort, chi, v_shear, v_pot)
 
-    raise ValueError(
-        f"Invalid formulation={formulation!r}; expected one of: 'en04', 'e10'."
-    )
+    raise ValueError(f"Invalid formulation={formulation!r}; expected one of: 'en04', 'e10'.")
 
 
 # Short alias matching the module name.
@@ -183,7 +181,7 @@ def gpi_log_decomposition(
     v_pot: Any = None,
     *,
     formulation: str = "en04",
-    chi: Optional[Any] = None,
+    chi: Any | None = None,
 ):
     """Additive log-space decomposition of the Genesis Potential Index.
 
@@ -222,6 +220,7 @@ def gpi_log_decomposition(
         >>> round(d["lngpi"] - (d["vorticity"] + d["humidity"] + d["pi"] + d["shear"]), 12)
         0.0
     """
+
     def _s(a):
         return float(a) if a.ndim == 0 else a
 
@@ -243,8 +242,13 @@ def gpi_log_decomposition(
             pi_t = np.where(bad, np.nan, 3.0 * np.log(vp / 70.0))
             sh = np.where(bad, np.nan, -2.0 * np.log(1.0 + 0.1 * vsh))
         lngpi = vort + hum + pi_t + sh
-        return {"lngpi": _s(lngpi), "vorticity": _s(vort), "humidity": _s(hum),
-                "pi": _s(pi_t), "shear": _s(sh)}
+        return {
+            "lngpi": _s(lngpi),
+            "vorticity": _s(vort),
+            "humidity": _s(hum),
+            "pi": _s(pi_t),
+            "shear": _s(sh),
+        }
 
     if formulation == "e10":
         if chi is None:
@@ -268,9 +272,12 @@ def gpi_log_decomposition(
             pi_t = np.where(bad, np.nan, 2.0 * np.log(vp_excess))
             sh = np.where(bad, np.nan, -4.0 * np.log(25.0 + vsh))
         lngpi = vort + chi_t + pi_t + sh
-        return {"lngpi": _s(lngpi), "vorticity": _s(vort), "chi": _s(chi_t),
-                "pi": _s(pi_t), "shear": _s(sh)}
+        return {
+            "lngpi": _s(lngpi),
+            "vorticity": _s(vort),
+            "chi": _s(chi_t),
+            "pi": _s(pi_t),
+            "shear": _s(sh),
+        }
 
-    raise ValueError(
-        f"Invalid formulation={formulation!r}; expected one of: 'en04', 'e10'."
-    )
+    raise ValueError(f"Invalid formulation={formulation!r}; expected one of: 'en04', 'e10'.")

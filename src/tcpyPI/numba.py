@@ -31,9 +31,7 @@ def noop_njit(*args, **kwargs):
                 result = float(result)
             elif isinstance(result, tuple):
                 # Cast components to float
-                result = tuple(
-                    float(x) if isinstance(x, np.floating) else x for x in result
-                )
+                result = tuple(float(x) if isinstance(x, np.floating) else x for x in result)
             return result
 
         return wrapper

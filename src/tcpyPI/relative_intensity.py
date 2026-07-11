@@ -11,7 +11,7 @@ and NaN handling consistent across analyses.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
@@ -21,7 +21,7 @@ def relative_intensity(
     v_pot: Any,
     *,
     nan_policy: str = "propagate",
-    clip: Optional[tuple[float, float]] = None,
+    clip: tuple[float, float] | None = None,
 ):
     """Compute relative intensity ν = V / V_PI.
 

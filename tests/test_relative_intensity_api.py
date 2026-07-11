@@ -14,6 +14,7 @@ def test_relative_intensity_masks_invalid_pi():
 
 
 def test_relative_intensity_clip():
-    out = tcpyPI.relative_intensity(np.array([10.0, 200.0]), np.array([20.0, 20.0]), clip=(0.0, 2.0))
+    out = tcpyPI.relative_intensity(
+        np.array([10.0, 200.0]), np.array([20.0, 20.0]), clip=(0.0, 2.0)
+    )
     np.testing.assert_allclose(out, np.array([0.5, 2.0]), rtol=0, atol=0)
-

@@ -10,9 +10,13 @@ import numpy as np
 import tcpyPI
 
 # Compact ocean sounding (from the pi() docstring example, thinned).
-P = np.array([1000.0, 975, 950, 925, 900, 850, 800, 750, 700, 600, 500, 400, 300, 250, 200, 150, 100, 70, 50])
+P = np.array(
+    [1000.0, 975, 950, 925, 900, 850, 800, 750, 700, 600, 500, 400, 300, 250, 200, 150, 100, 70, 50]
+)
 TC = np.array([28.0, 25, 24, 23, 22, 19, 16, 13, 11, 5, -2, -11, -27, -37, -49, -65, -79, -73, -64])
-R = np.array([18.0, 18, 16, 13, 12, 10, 9, 7, 4, 1.7, 1.7, 0.2, 0.1, 0.05, 0.014, 0.003, 0.002, 0.002, 0.002])
+R = np.array(
+    [18.0, 18, 16, 13, 12, 10, 9, 7, 4, 1.7, 1.7, 0.2, 0.1, 0.05, 0.014, 0.003, 0.002, 0.002, 0.002]
+)
 
 
 def _field_inputs(nlat=4, nlon=5):
@@ -49,8 +53,8 @@ def test_pi_field_exact_equality_with_pi():
 
 def test_pi_field_nan_cells_and_flags():
     sst, msl, tc, r = _field_inputs()
-    sst[0, 0] = np.nan   # land-like cell -> IFL=0
-    msl[1, 1] = np.nan   # missing MSL cell -> IFL=3
+    sst[0, 0] = np.nan  # land-like cell -> IFL=0
+    msl[1, 1] = np.nan  # missing MSL cell -> IFL=3
     vmax, pmin, ifl, to, otl = tcpyPI.pi_field(sst, msl, P, tc, r)
     assert ifl[0, 0] == 0 and np.isnan(vmax[0, 0])
     assert ifl[1, 1] == 3 and np.isnan(vmax[1, 1])

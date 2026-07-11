@@ -79,6 +79,14 @@ select = [
 # domain-standard meteorological notation used throughout.
 ignore = ["E501", "E741"]
 
+[tool.ruff.lint.per-file-ignores]
+# The package namespace is assembled by re-exports (including the historical
+# star imports); silence the unused/star-import rules there.
+"src/tcpyPI/__init__.py" = ["F401", "F403"]
+# run_sample.py deliberately inserts the local src/ checkout onto sys.path
+# before importing tcpyPI.
+"run_sample.py" = ["E402"]
+
 [tool.mypy]
 python_version = "3.10"
 ignore_missing_imports = true

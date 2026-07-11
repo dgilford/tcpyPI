@@ -196,9 +196,9 @@ def test_chi_m_te12_from_profile_moist_adiabat_from_sst_runs_bryan2008():
 def test_gpi_en04_scalar_matches_hand_calc():
     # Example values in typical ranges.
     abs_vort = 2.0e-5  # s^-1
-    rh_mid = 60.0      # %
-    v_shear = 10.0     # m/s
-    v_pot = 60.0       # m/s
+    rh_mid = 60.0  # %
+    v_shear = 10.0  # m/s
+    v_pot = 60.0  # m/s
 
     eta = 1.0e5 * abs_vort
     rh = rh_mid / 50.0
@@ -206,9 +206,7 @@ def test_gpi_en04_scalar_matches_hand_calc():
     shear_term = (1.0 + 0.1 * v_shear) ** (-2.0)
     expected = (eta**1.5) * (rh**3.0) * (vp**3.0) * shear_term
 
-    out = tcpyPI.genesis_potential_index(
-        abs_vort, rh_mid, v_shear, v_pot, formulation="en04"
-    )
+    out = tcpyPI.genesis_potential_index(abs_vort, rh_mid, v_shear, v_pot, formulation="en04")
     np.testing.assert_allclose(out, expected, rtol=0, atol=0)
 
 
@@ -236,8 +234,12 @@ def test_pdi_e05_si_and_scaled():
     dt = 3600.0  # seconds
     core = float(np.sum((vmax**3.0) * dt))
 
-    out_si = tcpyPI.power_dissipation_index(vmax, dt, formulation="e05_si", wind_units="m/s", dt_units="s")
-    out_scaled = tcpyPI.power_dissipation_index(vmax, dt, formulation="e05_1e11", wind_units="m/s", dt_units="s")
+    out_si = tcpyPI.power_dissipation_index(
+        vmax, dt, formulation="e05_si", wind_units="m/s", dt_units="s"
+    )
+    out_scaled = tcpyPI.power_dissipation_index(
+        vmax, dt, formulation="e05_1e11", wind_units="m/s", dt_units="s"
+    )
 
     np.testing.assert_allclose(out_si, core, rtol=0, atol=0)
     np.testing.assert_allclose(out_scaled, core / 1.0e11, rtol=0, atol=0)
