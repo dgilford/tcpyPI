@@ -198,7 +198,7 @@ def cape(TP, RP, PP, T, R, P, ascent_flag=0, ptop=50, miss_handle=1):
     ESP = utilities.es_cc(TPC)  # Parcel's saturated vapor pressure
     EVP = utilities.ev(RP, PP)  # Parcel's partial vapor pressure
     RH = EVP / ESP  # Parcel's relative humidity
-    RH = min([RH, 1.0])  # ensure that the relatively humidity does not exceed 1.0
+    RH = min(RH, 1.0)  # ensure that the relatively humidity does not exceed 1.0
     # calculate reversible total specific entropy per unit mass of dry air (E94, EQN. 4.5.9)
     S = utilities.entropy_S(TP, RP, PP)
 
@@ -227,7 +227,7 @@ def cape(TP, RP, PP, T, R, P, ascent_flag=0, ptop=50, miss_handle=1):
     # loop over each level in the profile
     for j in range(nlvl):
         # jmin is the index of the lowest pressure level evaluated in the loop
-        jmin = int(min([jmin, j]))
+        jmin = int(min(jmin, j))
 
         #
         #   *** Calculate Parcel quantities BELOW lifted condensation level   ***
@@ -278,7 +278,7 @@ def cape(TP, RP, PP, T, R, P, ascent_flag=0, ptop=50, miss_handle=1):
     INB = 0
     for j in range(nlvl - 1, jmin, -1):
         if TVRDIF[j] > 0:
-            INB = max([INB, j])
+            INB = max(INB, j)
 
     # CHECK: Is the LNB higher than the surface? If not, return zero CAPE
     if INB == 0:
@@ -300,16 +300,16 @@ def cape(TP, RP, PP, T, R, P, ascent_flag=0, ptop=50, miss_handle=1):
             PFAC = (
                 constants.RD * (TVRDIF[j] + TVRDIF[j - 1]) * (P[j - 1] - P[j]) / (P[j] + P[j - 1])
             )
-            PA = PA + max([PFAC, 0.0])
-            NA = NA - min([PFAC, 0.0])
+            PA = PA + max(PFAC, 0.0)
+            NA = NA - min(PFAC, 0.0)
 
         #
         #   ***   Find area between parcel pressure and first level above it ***
         #
         PMA = PP + P[jmin]
         PFAC = constants.RD * (PP - P[jmin]) / PMA
-        PA = PA + PFAC * max([TVRDIF[jmin], 0.0])
-        NA = NA - PFAC * min([TVRDIF[jmin], 0.0])
+        PA = PA + PFAC * max(TVRDIF[jmin], 0.0)
+        NA = NA - PFAC * min(TVRDIF[jmin], 0.0)
 
         #
         #   ***   Find residual positive area above INB and TO  ***
@@ -332,7 +332,7 @@ def cape(TP, RP, PP, T, R, P, ascent_flag=0, ptop=50, miss_handle=1):
         #   ***   Find CAPE  ***
         #
         CAPED = PA + PAT - NA
-        CAPED = max([CAPED, 0.0])
+        CAPED = max(CAPED, 0.0)
         # set the flag to OK if procedure reached this point
         IFLAG = 1
         # Return the calculated outputs to the above program level
@@ -572,7 +572,7 @@ def _pi_numba(
         #   ***  Find CAPE at radius of maximum winds   ***
         #
         TP = T[NK]
-        PP = min([PM, 1000.0])
+        PP = min(PM, 1000.0)
         # find the mixing ratio with the average of the lowest level pressure and MSL
         RP = constants.EPS * R[NK] * MSL / (PP * (constants.EPS + R[NK]) - R[NK] * MSL)
         CAPEM, TOB_ENV, LNB_ENV, IFLAG = cape(TP, RP, PP, T, R, P, ascent_flag, ptop, miss_handle)
@@ -587,7 +587,7 @@ def _pi_numba(
         #  *** Note that TO and OTL are found with this assumption ***
         #
         TP = SSTK
-        PP = min([PM, 1000.0])
+        PP = min(PM, 1000.0)
         RP = utilities.rv(ES0, PP)
         result = cape(TP, RP, PP, T, R, P, ascent_flag, ptop, miss_handle)
         CAPEMS, TOMS, LNBS, IFLAG = result
@@ -618,7 +618,7 @@ def _pi_numba(
         TVAV = 0.5 * (TV0 + TVSST)
         # Converge toward CAPE*-CAPEM (BE02, EQN 3-4)
         CAT = (CAPEM - CAPEA) + 0.5 * CKCD * RAT * (CAPEMS - CAPEM)
-        CAT = max([CAT, 0.0])
+        CAT = max(CAT, 0.0)
         # Iterate on pressure
         PNEW = MSL * np.exp(-CAT / (constants.RD * TVAV))
 
@@ -662,7 +662,7 @@ def _pi_numba(
     # Once converged, set potential intensity at the radius of maximum winds
     CATFAC = 0.5 * (1.0 + 1 / constants.b)
     CAT = (CAPEM - CAPEA) + CKCD * RAT * CATFAC * (CAPEMS - CAPEM)
-    CAT = max([CAT, 0.0])
+    CAT = max(CAT, 0.0)
 
     # Calculate the minimum pressure at the eye of the storm
     # BE02 EQN. 4
@@ -671,7 +671,7 @@ def _pi_numba(
     # Calculate the potential intensity at the radius of maximum winds
     # BE02 EQN. 3, reduced by some fraction (default 20%) to account for the reduction
     # of 10-m winds from gradient wind speeds (Emanuel 2000, Powell 1980)
-    FAC = max([0.0, (CAPEMS - CAPEM)])
+    FAC = max(0.0, (CAPEMS - CAPEM))
     VMAX = V_reduc * np.sqrt(CKCD * RAT * FAC)
 
     # Return the calculated outputs to the above program level
@@ -1056,9 +1056,13 @@ def pi_field(
 
     SSTC = np.asarray(SSTC, dtype=np.float64)
     MSL = np.asarray(MSL, dtype=np.float64)
-    P = np.asarray(P, dtype=np.float64)
-    TC = np.asarray(TC, dtype=np.float64)
-    R = np.asarray(R, dtype=np.float64)
+    # ascontiguousarray for the profile arrays: xarray.apply_ufunc hands us
+    # transposed (strided) views; a contiguous layout lets the parallel gufunc
+    # stream each column from adjacent memory. Memory layout only — values (and
+    # therefore results) are unchanged.
+    P = np.ascontiguousarray(P, dtype=np.float64)
+    TC = np.ascontiguousarray(TC, dtype=np.float64)
+    R = np.ascontiguousarray(R, dtype=np.float64)
 
     if P.ndim != 1:
         raise ValueError(

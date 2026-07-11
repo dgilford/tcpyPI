@@ -255,7 +255,7 @@ def entropy_S(T, R, P):
     """
     EV = ev(R, P)
     ES = es_cc(T - 273.15)
-    RH = min([EV / ES, 1.0])
+    RH = min(EV / ES, 1.0)
     ALV = Lv(T - 273.15)
     S = (
         (constants.CPD + R * constants.CL) * np.log(T)
