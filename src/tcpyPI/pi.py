@@ -805,11 +805,22 @@ def pi(
             - ``2``: routine did not converge (pressure iteration or CAPE solver)
             - ``3``: missing data in the input profile
 
-            Note: for marginal (near-zero CAPE) soundings whose pressure iteration
-            locks into a persistent period-2 oscillation, the solver collapses the
-            cycle to its midpoint and converges normally (``IFL=1``). This is a
-            documented, deliberate improvement over pcmin.m, which returns missing
-            (its equivalent of ``IFL=2``) for these soundings.
+            Notes on flag semantics:
+
+            - For marginal (near-zero CAPE) soundings whose pressure iteration
+              locks into a persistent period-2 oscillation, the solver collapses
+              the cycle to its midpoint and converges (``IFL=1``) when the cycle
+              amplitude is at most ~1 hPa (twice the convergence tolerance) —
+              which covers the observed marginal cases. Larger-amplitude cycles
+              fail safe and still return ``IFL=2``. This is a documented,
+              deliberate improvement over pcmin.m, which returns missing for all
+              such soundings.
+            - A flag tripped by the *environmental*-CAPE calculation persists
+              (see GitHub issue #78), so ``IFL=0`` or ``IFL=3`` can accompany
+              finite ``VMAX``/``PMIN`` on an otherwise-converged column (e.g. a
+              degenerate near-dry surface parcel). Treat ``IFL==1`` as the
+              "fully trustworthy output" gate. (pcmin.m collapses these cases to
+              its generic non-convergence flag instead.)
         - TO : float
             Outflow temperature (K).
         - OTL : float
