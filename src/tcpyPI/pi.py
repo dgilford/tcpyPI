@@ -678,6 +678,33 @@ def _pi_numba(
     return (VMAX, PMIN, IFL, TO, OTL)
 
 
+def _outflow_source_flag(outflow_source):
+    """Map the ``outflow_source`` keyword to the compiled core's integer flag.
+
+    Shared by :func:`pi` and :func:`pi_field` so the accepted values and error
+    message cannot drift between the two entry points.
+    """
+    if outflow_source == "cape_star":
+        return 0
+    if outflow_source == "cape_env":
+        return 1
+    raise ValueError(
+        f"Invalid outflow_source={outflow_source!r}; expected 'cape_star' or 'cape_env'."
+    )
+
+
+def _sort_profile_descending(P, TC, R):
+    """Sort profile arrays to decreasing pressure along the trailing level axis.
+
+    Shared by :func:`pi` (1-D profiles) and :func:`pi_field` (N-D fields with the
+    level dimension last); already-descending input is returned untouched.
+    """
+    order = np.argsort(P)[::-1]
+    if np.array_equal(order, np.arange(P.size)):
+        return P, TC, R
+    return P[order], np.take(TC, order, axis=-1), np.take(R, order, axis=-1)
+
+
 def pi(
     SSTC,
     MSL,
@@ -855,35 +882,24 @@ def pi(
             >>> pi(SSTC, MSL, P, TC, R + nan_in_levels)
             (82.4845..., 900.2039..., 1, 197.1666..., 84.9169...)
     """
-    if outflow_source == "cape_star":
-        outflow_source_flag = 0
-    elif outflow_source == "cape_env":
-        outflow_source_flag = 1
-    else:
-        raise ValueError(
-            f"Invalid outflow_source={outflow_source!r}; expected 'cape_star' or 'cape_env'."
-        )
+    outflow_source_flag = _outflow_source_flag(outflow_source)
 
     P = np.asarray(P)
     TC = np.asarray(TC)
     R = np.asarray(R)
 
-    # Guard against NaNs the Numba core cannot flag safely. A NaN in the pressure
-    # array or in MSL poisons the CAPE integration and the pressure-convergence
-    # loop, which can otherwise exit early and return numerically plausible values
-    # with IFL=1. Fail fast to IFL=3 (missing data), matching NaN handling of the
-    # temperature profile.
-    if np.any(np.isnan(P)) or np.any(np.isnan(np.asarray(MSL, dtype=float))):
+    # Guard against NaNs in the shared pressure array, which poison the CAPE
+    # integration (the loop can otherwise exit early and return numerically
+    # plausible values with IFL=1). Fail fast to IFL=3 (missing data). NaN MSL is
+    # handled by CHECK 0 inside the compiled core, the single owner of that policy
+    # for both pi() and pi_field().
+    if np.any(np.isnan(P)):
         return (np.nan, np.nan, 3, np.nan, np.nan)
 
     # Order-agnostic: the algorithm requires lowest index = lowest level
     # (decreasing pressure). Sort the profile here so any input ordering is
     # accepted; already-descending input is left untouched.
-    order = np.argsort(P)[::-1]
-    if not np.array_equal(order, np.arange(P.size)):
-        P = P[order]
-        TC = TC[order]
-        R = R[order]
+    P, TC, R = _sort_profile_descending(P, TC, R)
 
     return _pi_numba(
         SSTC,
@@ -965,6 +981,7 @@ def pi_field(
     P,
     TC,
     R,
+    *,
     CKCD=0.9,
     ascent_flag=0,
     diss_flag=1,
@@ -1024,14 +1041,7 @@ def pi_field(
         >>> field[2].tolist()  # IFL: ocean cell converges, NaN-SST cell is missing
         [[1, 0]]
     """
-    if outflow_source == "cape_star":
-        outflow_source_flag = 0
-    elif outflow_source == "cape_env":
-        outflow_source_flag = 1
-    else:
-        raise ValueError(
-            f"Invalid outflow_source={outflow_source!r}; expected 'cape_star' or 'cape_env'."
-        )
+    outflow_source_flag = _outflow_source_flag(outflow_source)
 
     SSTC = np.asarray(SSTC, dtype=np.float64)
     MSL = np.asarray(MSL, dtype=np.float64)
@@ -1065,11 +1075,7 @@ def pi_field(
         )
 
     # Order-agnostic: sort the shared profile to decreasing pressure once.
-    order = np.argsort(P)[::-1]
-    if not np.array_equal(order, np.arange(P.size)):
-        P = P[order]
-        TC = np.take(TC, order, axis=-1)
-        R = np.take(R, order, axis=-1)
+    P, TC, R = _sort_profile_descending(P, TC, R)
 
     if _pi_field_gufunc is None:
         # Pure-Python fallback (TCPYPI_DISABLE_NUMBA=1 or Numba unavailable).
