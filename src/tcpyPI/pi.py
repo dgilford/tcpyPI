@@ -42,6 +42,7 @@ Revision History:
     - `cape()` now retains all levels with pressure > ptop (previously the level nearest ptop could be dropped when no level fell exactly at ptop).
     - Under miss_handle=0, the parcel is now lifted from the lowest valid level (previously a NaN in the lowest level(s) produced a NaN parcel and unconverged output).
     - Moved the PI log-decomposition into this module as `pi_log_decomposition` (from the former analyses.py) and removed the redundant run-and-decompose wrapper, matching the `vi_log_decomposition`/`gpi_log_decomposition` APIs.
+    - Initialized the output flag before the environmental-CAPE call (as in pcmin.m) so a flag tripped by that call is no longer overwritten (GitHub issue #78).
 """
 # doctest: +ELLIPSIS
 
@@ -521,8 +522,12 @@ def _pi_numba(
             NK = int(np.where(valid_T)[0][0])
 
     #
-    #   ***   Find environmental CAPE *** 
+    #   ***   Find environmental CAPE ***
     #
+    # Default flag for the CAPE calculations. Initialized BEFORE the environmental
+    # CAPE call (as in pcmin.m) so a flag tripped by CAPEA is not clobbered by a
+    # later reset (see GitHub issue #78).
+    IFL=int(1)
     TP=T[NK]
     RP=R[NK]
     PP=P[NK]
@@ -532,17 +537,16 @@ def _pi_numba(
     # if the CAPE function tripped a flag, set the output IFL to it
     if (IFLAG != 1):
         IFL=int(IFLAG)
-    
+
     #
     #   ***   Begin iteration to find mimimum pressure   ***
     #
-    
+
     # set loop counter and initial condition
     NP=0         # loop counter
     PM=970.0
     PMOLD=PM     # initial condition from minimum pressure
     PNEW=0.0     # initial condition from minimum pressure
-    IFL=int(1)   # Default flag for CAPE calculation
 
     TO_ENV=np.nan
     OTL_ENV=np.nan
