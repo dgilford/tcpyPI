@@ -14,7 +14,12 @@ CL : float
     Specific heat of liquid water [J/kg/K]. Set to Emanuel's **modified** value of
     2500 (rather than the physical ~4190) for internal consistency with the pcmin
     entropy formulation; this is why :func:`tcpyPI.utilities.Lv` is not the standard
-    Kirchhoff latent heat.
+    Kirchhoff latent heat. Sensitivity (quantified on the ERA5 September 2024 North
+    Atlantic sample, columns with VMAX > 40 m/s): switching to the physical 4190
+    raises VMAX by ~+1.2 m/s (+1.8%) on average (up to ~+5.5 m/s on marginal
+    columns) and deepens PMIN by ~5-6 hPa. The 2500 value is retained deliberately
+    to remain consistent with BE02/pcmin.m and the published validation
+    (cf. the historical `checkCL` exploration).
 CPVMCL : float
     ``CPV - CL`` [J/kg/K]; sets the temperature dependence of the latent heat.
 RV : float

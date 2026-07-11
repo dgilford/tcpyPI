@@ -141,6 +141,13 @@ def es_cc(TC):
 def Lv(TC):
     """Calculate latent heat of vaporization as a function of temperature.
 
+    NOTE: this is Emanuel's pseudoadiabat-tuned latent heat, not the standard
+    Kirchhoff relation. Its temperature slope is ``CPVMCL = CPV - CL`` with the
+    modified ``CL = 2500`` J/kg/K from :mod:`tcpyPI.constants` (physical CL would
+    give a ~2320 J/kg/K slope), so ``Lv(30)`` is ~2% above the physical value.
+    This is deliberate and internally consistent with the BE02/pcmin entropy
+    formulation; do not use this function as a general-purpose latent heat.
+
     Parameters
     ----------
     TC : float
