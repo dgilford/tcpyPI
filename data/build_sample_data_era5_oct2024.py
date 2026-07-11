@@ -13,7 +13,7 @@ Inputs (expected in `data/`, produced by the download scripts):
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -130,7 +130,7 @@ def build_sample_data(
         attrs={
             "title": "pyPI sample dataset (ERA5 monthly means, 2024)",
             "source": f"{pl_path.name} + {sl_path.name}",
-            "history": f"{datetime.now(timezone.utc).isoformat()}: created by data/build_sample_data_era5_oct2024.py",
+            "history": f"{datetime.now(UTC).isoformat()}: created by data/build_sample_data_era5_oct2024.py",
             "notes": (
                 "Core PI inputs in pyPI units: SST/T in C, MSL in hPa, r in g/kg "
                 "(true water-vapor mixing ratio, r = q/(1-q) from ERA5 specific "

@@ -1,22 +1,23 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
+requires = ["hatchling", "hatch-vcs", "hatch-fancy-pypi-readme"]
 build-backend = "hatchling.build"
 
 [project]
 name = "tcpyPI"
-dynamic = ["version"]
+# `readme` is dynamic: hatch-fancy-pypi-readme rewrites the README's relative
+# links/images to absolute GitHub URLs so they render on PyPI (see below).
+dynamic = ["version", "readme"]
 description = "tcpyPI: Tropical cyclone potential intensity calculations in Python"
-readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = {file = "LICENSE" }
 authors = [
     { name = "Daniel M. Gilford, PhD", email = "dgilford@climatecentral.org" }
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Intended Audience :: Science/Research",
@@ -39,7 +40,26 @@ Issues = "https://github.com/dgilford/tcpyPI/issues"
 
 # Configure hatch-vcs to extract version information from version control (e.g. Git tags)
 [tool.hatch.version]
-source = "vcs" 
+source = "vcs"
+
+# Assemble the PyPI long description from README.md, rewriting relative links and
+# images to absolute GitHub URLs (PyPI does not resolve relative paths).
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "README.md"
+
+# HTML <img src="./..."> -> raw.githubusercontent URLs (render inline on PyPI)
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '(<img[^>]*src=")\./'
+replacement = '\g<1>https://raw.githubusercontent.com/dgilford/tcpyPI/main/'
+
+# Markdown links [text](relative/path) -> absolute repo blob URLs; skip links that
+# are already absolute (http/https), in-page anchors (#), or mailto:.
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '\]\((?!https?://|#|mailto:)\.?/?([^)]+)\)'
+replacement = '](https://github.com/dgilford/tcpyPI/blob/main/\g<1>)'
 
 [tool.hatch.build.targets.sdist]
 exclude = [
@@ -62,7 +82,7 @@ addopts = ["--doctest-modules", "-v"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 extend-exclude = ["notebooks", ".pixi", ".ipynb_checkpoints"]
 
 [tool.ruff.lint]
@@ -88,7 +108,7 @@ ignore = ["E501", "E741"]
 "run_sample.py" = ["E402"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 ignore_missing_imports = true
 follow_imports = "silent"
 warn_unused_ignores = true
@@ -124,9 +144,9 @@ basic-tests = "python -m pytest -n auto --ignore run_sample.py --ignore tests/te
 xarray-tests = "python -m pytest -n auto tests/test_run_sample.py"
 
 [tool.pixi.feature.min-dependency-versions.dependencies]
-# Pinned to the declared support floor (requires-python >=3.10) so CI keeps the
+# Pinned to the declared support floor (requires-python >=3.11) so CI keeps the
 # minimum-version claim honest. Update in lockstep with the [project] dependencies.
-python = "3.10.*"
+python = "3.11.*"
 numba = "0.59.*"
 numpy = "1.26.*"
 
@@ -159,6 +179,7 @@ skyborn = "*"
 [tool.pixi.feature.lint.dependencies]
 ruff = "*"
 mypy = "*"
+python-build = "*"
 
 [tool.pixi.feature.lint.tasks]
 lint = "ruff check src tests run_sample.py data"

@@ -39,19 +39,24 @@ The description includes the pyPI background, a PI computation derivation, valid
 
 ## Getting Started
 
-pyPI requires **Python 3.10+** to run.
+pyPI requires **Python 3.11+** to run.
 To get pyPI up and running on your system, clone the repository and ensure that you have the required dependencies.
 
 ### Installation
 
-pyPI is packaged using the python package manager [pip](https://pip.pypa.io/en/stable/).
-
 [![PyPI version](https://badge.fury.io/py/tcpypi.svg)](https://badge.fury.io/py/tcpypi)
+[![conda-forge](https://img.shields.io/conda/vn/conda-forge/tcpypi.svg)](https://anaconda.org/conda-forge/tcpypi)
 
-To install tcpypi from the command line:
+Install from [PyPI](https://pypi.org/project/tcpypi/):
 
 ```bash
 pip install tcpypi
+```
+
+or from [conda-forge](https://anaconda.org/conda-forge/tcpypi):
+
+```bash
+conda install -c conda-forge tcpypi
 ```
 
 ### tcpyPI Dependencies

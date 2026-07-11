@@ -1,10 +1,12 @@
 name: Run tests
 
+# Triggers cover both `master` and `main` so CI keeps working through the
+# default-branch rename (master -> main); drop `master` after the rename.
 on:
   push:
     branches:
-      - master
       - main
+      - master
   pull_request:
 
 jobs:
