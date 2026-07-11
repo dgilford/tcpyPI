@@ -35,7 +35,7 @@ and
 Please read [pyPI_Users_Guide_v1.3.pdf](pyPI_Users_Guide_v1.3.pdf) for a full overview and details on pyPI.
 The description includes the pyPI background, a PI computation derivation, validation against the commonly-used MATLAB algorithm (pcmin), and a set of sample analyses.
 
-> **Note:** the User's Guide documents v1.3 and predates the newer options and diagnostics (`outflow_source`, the log-decomposition API, and the experimental ventilation, genesis-potential, power-dissipation, and relative-intensity utilities). For those, see the sections below and the demo notebooks.
+> **Note:** the User's Guide documents v1.3 and predates the newer options and diagnostics (`outflow_source`, the log-decomposition API, and the ventilation and genesis-potential indices, and the experimental power-dissipation and relative-intensity utilities). For those, see the sections below and the demo notebooks.
 
 ## Getting Started
 
@@ -152,9 +152,9 @@ lnpi, lneff, lndiseq, lnCKCD = pi_log_decomposition(vmax, SSTC, t0, CKCD=0.9, ss
 
 `pi_log_decomposition` mirrors `vi_log_decomposition` and `gpi_log_decomposition`: give it the (already-computed) index inputs and it returns the additive log-space terms.
 
-### Ventilation Index (Tang & Emanuel 2012) (EXPERIMENTAL)
+### Ventilation Index (Tang & Emanuel 2012)
 
-tcpyPI includes an **experimental** implementation of the Tang & Emanuel (2012) ventilation index:
+tcpyPI includes an implementation of the Tang & Emanuel (2012) ventilation index:
 
 Equations (TE12):
 
@@ -237,9 +237,9 @@ import tcpyPI
 nu = tcpyPI.relative_intensity(vmax_series, vpi_series)
 ```
 
-### Genesis Potential Index (GPI) (EXPERIMENTAL)
+### Genesis Potential Index (GPI)
 
-tcpyPI includes an **experimental** Genesis Potential Index (GPI) utility:
+tcpyPI includes a Genesis Potential Index (GPI) utility:
 
 Equations (as implemented here):
 

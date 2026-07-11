@@ -7,7 +7,7 @@ Core library in `src/tcpyPI/`:
 - `pi.py` — the BE02 PI algorithm (`pi()`, `cape()`, entropy solver), the whole-field fast path `pi_field()` (parallel guvectorize; ~2 orders of magnitude over per-column loops), and the Wing et al. (2015) log-decomposition `pi_log_decomposition()`. Numba-compiled. `cape()` keeps the original pcmin.m per-call structure line-for-line (an environment-setup hoist was certified bit-identical but reverted: negligible speed gain did not justify structural drift from the MATLAB reference).
 - `utilities.py` — thermodynamic helpers, unit/longitude conversions, PI efficiency/disequilibrium (`decompose_pi` scalar core).
 - `constants.py` — meteorological constants (fully documented, incl. the deliberate modified `CL=2500`); `numba.py` — the `@njit`/`guvectorize` wrapper (graceful pure-Python fallback when Numba is absent).
-- `vi.py` — TE12 ventilation index + entropy-deficit (`chi_m`) + `vi_log_decomposition`. `gpi.py` — genesis potential index (`en04`, `e10`) + `gpi_log_decomposition`. `pdi.py` — power dissipation index. `relative_intensity.py` — ν = V/V_PI. (VI/GPI/PDI are experimental.)
+- `vi.py` — TE12 ventilation index + entropy-deficit (`chi_m`) + `vi_log_decomposition`. `gpi.py` — genesis potential index (`en04`, `e10`) + `gpi_log_decomposition`. `pdi.py` — power dissipation index. `relative_intensity.py` — ν = V/V_PI. (PDI is experimental.)
 
 Sample workflow in `run_sample.py` (writes `data/raw_sample_output.nc`, `data/full_sample_output.nc`). Tests in `tests/`. Notebooks in `notebooks/`; figures in `figures/`; legacy BE02 MATLAB in `matlab_scripts/`.
 

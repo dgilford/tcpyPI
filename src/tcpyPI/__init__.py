@@ -9,7 +9,7 @@ __author__ = "Daniel M. Gilford <dgilford@climatecentral.org>"
 # TODO: Re-factor module-wide implicit imports
 from .constants import *
 
-# Genesis Potential Index (GPI) (EXPERIMENTAL)
+# Genesis Potential Index (GPI)
 from .gpi import genesis_potential_index, gpi, gpi_log_decomposition
 
 # Power Dissipation Index (PDI) (EXPERIMENTAL)
