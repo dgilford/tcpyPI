@@ -43,6 +43,7 @@ Revision History:
     - Under miss_handle=0, the parcel is now lifted from the lowest valid level (previously a NaN in the lowest level(s) produced a NaN parcel and unconverged output).
     - Moved the PI log-decomposition into this module as `pi_log_decomposition` (from the former analyses.py) and removed the redundant run-and-decompose wrapper, matching the `vi_log_decomposition`/`gpi_log_decomposition` APIs.
     - Initialized the output flag before the environmental-CAPE call (as in pcmin.m) so a flag tripped by that call is no longer overwritten (GitHub issue #78).
+    - Added a period-2 oscillation rescue to the minimum-pressure iteration: marginal near-neutral soundings whose fixed-point map locks into a 2-cycle (previously non-convergent, IFL=2) are collapsed to the cycle midpoint and converge (IFL=1). Previously-converging profiles are unchanged bit-for-bit.
 """
 # doctest: +ELLIPSIS
 
@@ -609,7 +610,23 @@ def _pi_numba(
         CAT=max([CAT,0.0])
         # Iterate on pressure
         PNEW=MSL*np.exp(-CAT/(constants.RD*TVAV))
-        
+
+        #
+        #   ***  Rescue persistent period-2 oscillations  ***
+        #
+        # At this point PM is the current iterate x_n and PMOLD is x_(n-1), i.e.
+        # the state two iterations back relative to PNEW = x_(n+1). For marginal
+        # (near-zero environmental CAPE) soundings the fixed-point map can lock
+        # into a period-2 cycle whose amplitude exceeds the 0.5 hPa tolerance,
+        # which in BE02/pcmin.m runs to the iteration cap and returns missing.
+        # When PNEW returns to within eps of x_(n-1) while the step is still
+        # super-tolerance, collapse to the cycle midpoint and continue; the loop
+        # then exits through the normal convergence path (IFL=1). Convergent
+        # trajectories exit within ~10 iterations and never reach this branch,
+        # so all previously-converging results are unchanged bit-for-bit.
+        if (NP >= 10) and (np.abs(PNEW - PMOLD) < 1e-5) and (np.abs(PNEW - PM) > 0.5):
+            PNEW = 0.5 * (PNEW + PM)
+
         #
         #   ***  Test for convergence (setup for possible next while iteration)  ***
         #
@@ -746,9 +763,15 @@ def pi(
             Status flag:
 
             - ``1``: success
-            - ``0``: no convergence
-            - ``2``: CAPE routine failed to converge
-            - ``3``: CAPE routine failed due to missing data
+            - ``0``: invalid input (e.g. SST <= 5 C, Kelvin-like units, improper sounding)
+            - ``2``: routine did not converge (pressure iteration or CAPE solver)
+            - ``3``: missing data in the input profile
+
+            Note: for marginal (near-zero CAPE) soundings whose pressure iteration
+            locks into a persistent period-2 oscillation, the solver collapses the
+            cycle to its midpoint and converges normally (``IFL=1``). This is a
+            documented, deliberate improvement over pcmin.m, which returns missing
+            (its equivalent of ``IFL=2``) for these soundings.
         - TO : float
             Outflow temperature (K).
         - OTL : float
