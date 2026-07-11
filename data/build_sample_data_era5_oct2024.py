@@ -55,9 +55,10 @@ def build_sample_data(
     Handles any number of monthly-mean time steps: the ``valid_time`` axis is mapped
     to an integer ``month`` coordinate (1-12), so a 12-month 2024 download yields a
     full seasonal cycle and a single-month download yields a one-element ``month``
-    axis. Includes the wind/humidity/vorticity fields (``u, v, r, vo``) needed for the
-    seasonal GPI/ventilation-index analyses alongside the core PI inputs
-    (``sst, msl, t, q``).
+    axis. Includes the wind/humidity/vorticity fields (``u, v, rh, vo``) needed for
+    the seasonal GPI/ventilation-index analyses alongside the core PI inputs
+    (``sst, msl, t, r`` — with ``r`` the true water-vapor mixing ratio converted
+    from ERA5 specific humidity via ``r = q/(1-q)``; see GitHub issue #60).
 
     Spatial resolution is reduced by strided subsampling (decimation, no
     interpolation) with ``subsample_factor`` (8 -> ~2 deg from ERA5's 0.25 deg); the
@@ -112,10 +113,13 @@ def build_sample_data(
             "sst": sst_c,
             "msl": sl["msl"] / 100.0,
             "t": pl["t"] - 273.15,
-            "q": pl["q"] * 1000.0,
+            # True water-vapor mixing ratio from ERA5 specific humidity:
+            # r = q/(1-q), converted to g/kg (matches pi()'s documented R input;
+            # see GitHub issue #60).
+            "r": (pl["q"] / (1.0 - pl["q"])) * 1000.0,
             "u": pl["u"],
             "v": pl["v"],
-            "r": pl["r"],
+            "rh": pl["r"],
             "vo": pl["vo"],
         },
         attrs={
@@ -123,17 +127,17 @@ def build_sample_data(
             "source": f"{pl_path.name} + {sl_path.name}",
             "history": f"{datetime.now(timezone.utc).isoformat()}: created by data/build_sample_data_era5_oct2024.py",
             "notes": (
-                "Core PI inputs in pyPI units: SST/T in C, MSL in hPa, q in g/kg "
-                "(specific humidity used directly as the mixing-ratio input, following "
-                "the original pyPI sample convention). u/v [m/s], r [%], vo [s^-1] are "
-                "included for the seasonal GPI/ventilation-index analyses. Native ERA5 "
-                "0.25deg subsampled (decimated) to ~2deg; SST masked to ocean "
+                "Core PI inputs in pyPI units: SST/T in C, MSL in hPa, r in g/kg "
+                "(true water-vapor mixing ratio, r = q/(1-q) from ERA5 specific "
+                "humidity). u/v [m/s], rh [%], vo [s^-1] are included for the "
+                "seasonal GPI/ventilation-index analyses. Native ERA5 0.25deg "
+                "subsampled (decimated) to ~2deg; SST masked to ocean "
                 "(land fraction < 0.5)."
             ),
         },
     )
 
-    out["month"].attrs.update({"standard_name": "Month", "units": "month number (1-12)"})
+    out["month"].attrs.update({"long_name": "calendar month of 2024 (1-12)", "units": "1"})
     out["p"].attrs.update({"standard_name": "Atmospheric Pressure", "units": "hPa"})
     out["lat"].attrs.update({"standard_name": "Latitude", "units": "degrees_north"})
     out["lon"].attrs.update({"standard_name": "Longitude", "units": "degrees_east"})
@@ -146,10 +150,10 @@ def build_sample_data(
     out["sst"].attrs.update({"standard_name": "Sea Surface Temperature", "units": "degrees C"})
     out["msl"].attrs.update({"standard_name": "Mean Sea Level Pressure", "units": "hPa"})
     out["t"].attrs.update({"standard_name": "Atmospheric Temperature", "units": "degrees C"})
-    out["q"].attrs.update({"standard_name": "Specific Humidity", "units": "g/kg"})
+    out["r"].attrs.update({"standard_name": "Water Vapor Mixing Ratio", "units": "g/kg"})
     out["u"].attrs.update({"standard_name": "Eastward Wind", "units": "m/s"})
     out["v"].attrs.update({"standard_name": "Northward Wind", "units": "m/s"})
-    out["r"].attrs.update({"standard_name": "Relative Humidity", "units": "%"})
+    out["rh"].attrs.update({"standard_name": "Relative Humidity", "units": "%"})
     out["vo"].attrs.update({"standard_name": "Relative Vorticity", "units": "s-1"})
 
     encoding = {var: {"zlib": True, "complevel": 4} for var in out.data_vars}

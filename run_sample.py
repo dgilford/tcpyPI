@@ -53,7 +53,7 @@ def run_sample_dataset(fn, dim='p',CKCD=0.9,outflow_source="cape_star"):
     # calculate PI over the whole data set using the xarray universal function
     result = xr.apply_ufunc(
         pi,
-        ds['sst'], ds['msl'], ds[dim], ds['t'], ds['q'],
+        ds['sst'], ds['msl'], ds[dim], ds['t'], ds['r'],
         kwargs=dict(
             CKCD=CKCD,
             ascent_flag=0,
@@ -82,7 +82,7 @@ def run_sample_dataset(fn, dim='p',CKCD=0.9,outflow_source="cape_star"):
         # merge the state data into the same data structure
         'sst': ds.sst,
         't': ds.t,
-        'q': ds.q,
+        'r': ds.r,
         'msl': ds.msl,
         'lsm': ds.lsm,
         })

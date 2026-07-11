@@ -289,7 +289,7 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 * **[run_sample.py](run_sample.py)** - Example script that computes PI and accompanying analyses over the entire sample dataset
 
 #### Data
-* [sample_data.nc](./data/sample_data.nc) - Sample state variables from ERA5 2024 monthly means over the North Atlantic (12 months; ~2° subsample; SST masked to ocean). Includes the core PI inputs (SST, MSL, T, q) plus winds, RH, and vorticity for the GPI/ventilation-index analyses. Built by [data/build_sample_data_era5_oct2024.py](./data/build_sample_data_era5_oct2024.py) from the (untracked, regenerable) ERA5 downloads.
+* [sample_data.nc](./data/sample_data.nc) - Sample state variables from ERA5 2024 monthly means over the North Atlantic (12 months; ~2° subsample; SST masked to ocean). Includes the core PI inputs (SST, MSL, T, and the true water-vapor mixing ratio `r = q/(1−q)` converted from ERA5 specific humidity) plus winds, RH, and vorticity for the GPI/ventilation-index analyses. Built by [data/build_sample_data_era5_oct2024.py](./data/build_sample_data_era5_oct2024.py) from the (untracked, regenerable) ERA5 downloads.
 * [era5_demo_subset.nc](./data/era5_demo_subset.nc) - Small single-column ERA5 environment (Hurricane Milton 2024 reference location) used by the ventilation-index and GPI demo notebooks.
 * [mdr.json](./data/mdr.json) - Main Development Region definitions from [Gilford et al. (2017)](https://journals.ametsoc.org/doi/abs/10.1175/JCLI-D-16-0827.1)
 * [raw_sample_output.nc](./data/raw_sample_output.nc) - Sample outputs from pi.py *only*, created by run_sample.py
