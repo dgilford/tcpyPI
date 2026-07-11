@@ -61,18 +61,20 @@ replacement = '\g<1>https://raw.githubusercontent.com/dgilford/tcpyPI/main/'
 pattern = '\]\((?!https?://|#|mailto:)\.?/?([^)]+)\)'
 replacement = '](https://github.com/dgilford/tcpyPI/blob/main/\g<1>)'
 
+# Keep the sdist lean via an explicit allowlist. (An `exclude` list is NOT enough
+# here: hatchling treats the .gitignore `!data/*.nc` negations as force-includes
+# that override target excludes, which silently shipped ~12 MB of sample netCDF.)
+# README.md and LICENSE must be included: the fancy-pypi-readme metadata hook and
+# the license reference re-run when building a wheel from the sdist.
 [tool.hatch.build.targets.sdist]
-exclude = [
-  "/.github",
-  "/data",
-  "/dist",
-  "/figures",
-  "/matlab_scripts",
-  "/notebooks",
-  "/tests",
-  "/pyPI_Users_Guide_v1.3.pdf",
-  "/run_sample.py",
-] 
+only-include = [
+  "src",
+  "README.md",
+  "LICENSE",
+  "CITATION.cff",
+  "AGENTS.md",
+  "CLAUDE.md",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/tcpyPI"] 

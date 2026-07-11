@@ -5,6 +5,6 @@ repos:
     # Keep close to the CI lint env's ruff so pre-commit and CI agree on formatting.
     rev: v0.15.21
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: [--fix]
       - id: ruff-format
