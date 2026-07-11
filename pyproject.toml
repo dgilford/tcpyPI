@@ -60,6 +60,36 @@ packages = ["src/tcpyPI"]
 [tool.pytest.ini_options]
 addopts = ["--doctest-modules", "-v"]
 
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["notebooks", ".pixi", ".ipynb_checkpoints"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort (import ordering)
+    "UP",  # pyupgrade
+    "NPY", # numpy-specific rules
+]
+# E501: long lines in scientific docstrings/comments are fine (the formatter
+# handles code lines); E741: single-letter names (P, T, R, l...) are the
+# domain-standard meteorological notation used throughout.
+ignore = ["E501", "E741"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+follow_imports = "silent"
+warn_unused_ignores = true
+# The njit-compiled numerical kernels are intentionally untyped; type-checking
+# targets the pure-Python API surface.
+[[tool.mypy.overrides]]
+module = "tcpyPI.pi"
+ignore_errors = true
+
 
 # Pixi is used for managing Conda environments in the development of tcpyPI.
 # It is not required for the installation or usage of tcpyPI.
@@ -118,6 +148,16 @@ build-sample = "python data/build_sample_data_era5_oct2024.py"
 [tool.pixi.feature.bench.pypi-dependencies]
 skyborn = "*"
 
+[tool.pixi.feature.lint.dependencies]
+ruff = "*"
+mypy = "*"
+
+[tool.pixi.feature.lint.tasks]
+lint = "ruff check src tests run_sample.py data"
+format-check = "ruff format --check src tests run_sample.py data"
+format = "ruff format src tests run_sample.py data"
+typecheck = "mypy src/tcpyPI"
+
 [tool.pixi.target.osx-64.dependencies]
 # Workaround for duplicate LD_RPATH issue on MacOS 15.4
 # <https://github.com/prefix-dev/pixi/issues/3479>
@@ -135,6 +175,7 @@ libgfortran5 = ">=14"
 [tool.pixi.environments]
 default = {features = ["test", "xarray", "notebook", "data"], solve-group = "default"}
 bench = {features = ["test", "xarray", "notebook", "bench"], solve-group = "bench"}
+lint = {features = ["lint"], solve-group = "lint"}
 minimal = {features = [], solve-group = "default"}
 # CI test environments,
 test-latest = {features = ["test"], solve-group = "default"}
