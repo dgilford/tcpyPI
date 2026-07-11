@@ -54,92 +54,6 @@ from . import constants, utilities
 from .numba import guvectorize, njit
 
 
-@njit()
-def _cape_env_setup(T, R, P, ptop, miss_handle):
-    """Hoisted environment-side preprocessing shared by every CAPE call of a column.
-
-    The environment (T, R, P) is identical for all ~20 CAPE evaluations of a
-    single pi() column — only the parcel changes — so the missing-value scan, the
-    ptop slicing, the ordering check, and the per-level environmental density
-    temperature are computed once per column instead of once per call. The
-    computations are exactly those previously performed inside cape() on every
-    call (identical math on identical inputs -> bit-identical results; certified).
-
-    Returns ``(status, first_lvl, N, TVENV)``:
-
-    - ``status=1``: proceed; slice the profiles with ``[first_lvl:N]``; ``TVENV``
-      holds ``Trho(T[j], R[j], R[j])`` for the sliced levels.
-    - ``status=3``: missing values -> CAPE returns ``(nan, nan, nan, 3)``.
-    - ``status=0``: improper sounding ordering -> CAPE returns ``(0, nan, nan, 0)``.
-    """
-    _empty = np.empty(0, dtype=np.float64)
-
-    # find if any values are missing in the temperature or mixing ratio array
-    valid_i = ~np.isnan(T)
-    first_valid = np.where(valid_i)[0][0]
-    # Are there missing values? If so, assess according to flag
-    if np.sum(valid_i) != len(P):
-        # if not allowed, set IFLAG=3 and return missing CAPE
-        if miss_handle != 0:
-            return (3, 0, 0, _empty)
-        else:
-            # if allowed, but there are missing values between the lowest existing level
-            # and ptop, then set IFLAG=3 and return missing CAPE
-            if np.sum(np.isnan(T[first_valid : len(P)]) > 0):
-                return (3, 0, 0, _empty)
-            else:
-                first_lvl = first_valid
-    else:
-        first_lvl = 0
-
-    # Populate new environmental profiles removing values above ptop and
-    # find new number, N, of profile levels with which to calculate CAPE.
-    # Keep every level with P > ptop (matching pcmin); with the profile ordered
-    # by decreasing pressure these are the leading N entries. Using argmin(|P-ptop|)
-    # would drop the topmost retained level whenever no level sits exactly at ptop.
-    N = int(np.count_nonzero(P > ptop))
-
-    Psl = P[first_lvl:N]
-    # CHECK: is the input profile ordered with increasing pressure? If not, return missing CAPE
-    if Psl[2] - Psl[1] > 0:
-        return (0, 0, 0, _empty)
-
-    Tsl = T[first_lvl:N]
-    Rsl = R[first_lvl:N]
-    # Environmental density temperature at each level (E94, EQN. 4.3.1 and 6.3.7);
-    # parcel-independent, so computed once here rather than in every CAPE call.
-    nlvl = len(Psl)
-    TVENV = np.empty(nlvl)
-    for j in range(nlvl):
-        TVENV[j] = utilities.Trho(Tsl[j], Rsl[j], Rsl[j])
-
-    return (1, first_lvl, N, TVENV)
-
-
-@njit()
-def _cape_hoisted(TP, RP, PP, status, T, R, P, TVENV, ascent_flag):
-    """Dispatch a CAPE call using precomputed per-column environment state.
-
-    Drop-in replacement for cape() inside _pi_numba: reproduces exactly the
-    return values cape() would produce for each setup ``status`` (see
-    :func:`_cape_env_setup`), calling :func:`_cape_core` on the presliced
-    environment when the setup succeeded.
-    """
-    if status == 3:
-        CAPED = np.nan
-        TOB = np.nan
-        LNB = np.nan
-        IFLAG = 3
-        return (CAPED, TOB, LNB, IFLAG)
-    if status == 0:
-        CAPED = 0
-        TOB = np.nan
-        LNB = np.nan
-        IFLAG = 0
-        return (CAPED, TOB, LNB, IFLAG)
-    return _cape_core(TP, RP, PP, T, R, P, TVENV, ascent_flag)
-
-
 # define the function to calculate CAPE
 @njit()
 def cape(TP, RP, PP, T, R, P, ascent_flag=0, ptop=50, miss_handle=1):
@@ -210,42 +124,62 @@ def cape(TP, RP, PP, T, R, P, ascent_flag=0, ptop=50, miss_handle=1):
             - ``3``: missing values in input profile
     """
     #
-    #   ***  Hoisted environment handling: missing values, ptop slicing,   ***
-    #   ***  ordering check, and environmental density temperatures        ***
-    #   (see _cape_env_setup; shared with the per-column fast path in _pi_numba)
+    #   ***  Handle missing values   ***
     #
-    status, first_lvl, N, TVENV = _cape_env_setup(T, R, P, ptop, miss_handle)
-    if status == 3:
-        CAPED = np.nan
-        TOB = np.nan
-        LNB = np.nan
-        IFLAG = 3
-        # Return the unsuitable values
-        return (CAPED, TOB, LNB, IFLAG)
-    if status == 0:
+
+    # find if any values are missing in the temperature or mixing ratio array
+    valid_i = ~np.isnan(T)
+    first_valid = np.where(valid_i)[0][0]
+    # Are there missing values? If so, assess according to flag
+    if np.sum(valid_i) != len(P):
+        # if not allowed, set IFLAG=3 and return missing CAPE
+        if miss_handle != 0:
+            CAPED = np.nan
+            TOB = np.nan
+            LNB = np.nan
+            IFLAG = 3
+            # Return the unsuitable values
+            return (CAPED, TOB, LNB, IFLAG)
+        else:
+            # if allowed, but there are missing values between the lowest existing level
+            # and ptop, then set IFLAG=3 and return missing CAPE
+            if np.sum(np.isnan(T[first_valid : len(P)]) > 0):
+                CAPED = np.nan
+                TOB = np.nan
+                LNB = np.nan
+                IFLAG = 3
+                # Return the unsuitable values
+                return (CAPED, TOB, LNB, IFLAG)
+            else:
+                first_lvl = first_valid
+    else:
+        first_lvl = 0
+
+    # Populate new environmental profiles removing values above ptop and
+    # find new number, N, of profile levels with which to calculate CAPE.
+    # Keep every level with P > ptop (matching pcmin); with the profile ordered
+    # by decreasing pressure these are the leading N entries. Using argmin(|P-ptop|)
+    # would drop the topmost retained level whenever no level sits exactly at ptop.
+    N = int(np.count_nonzero(P > ptop))
+
+    P = P[first_lvl:N]
+    T = T[first_lvl:N]
+    R = R[first_lvl:N]
+    nlvl = len(P)
+    TVRDIF = np.zeros((nlvl,))
+
+    #
+    #   ***  Run checks   ***
+    #
+
+    # CHECK: is the input profile ordered with increasing pressure? If not, return missing CAPE
+    if P[2] - P[1] > 0:
         CAPED = 0
         TOB = np.nan
         LNB = np.nan
         IFLAG = 0
         # Return the unsuitable values
         return (CAPED, TOB, LNB, IFLAG)
-
-    return _cape_core(
-        TP, RP, PP, T[first_lvl:N], R[first_lvl:N], P[first_lvl:N], TVENV, ascent_flag
-    )
-
-
-@njit()
-def _cape_core(TP, RP, PP, T, R, P, TVENV, ascent_flag):
-    """Parcel-dependent part of the CAPE calculation (see cape()).
-
-    Operates on the presliced environmental profiles and the precomputed
-    per-level environmental density temperatures ``TVENV`` from
-    :func:`_cape_env_setup`. The math is line-for-line the parcel portion of the
-    original cape() implementation.
-    """
-    nlvl = len(P)
-    TVRDIF = np.zeros((nlvl,))
 
     # CHECK: Is the input parcel suitable? If not, return missing CAPE
     if (RP < 1e-6) or (TP < 200):
@@ -303,11 +237,11 @@ def _cape_core(TP, RP, PP, T, R, P, TVENV, ascent_flag):
             TG = TP * (P[j] / PP) ** (constants.RD / constants.CPD)
             # Parcel Mixing ratio
             RG = RP
-            # Parcel Density Temperature at this pressure (E94, EQN. 4.3.1 and 6.3.7);
-            # the environmental counterpart is precomputed per column in TVENV
+            # Parcel and Environmental Density Temperatures at this pressure (E94, EQN. 4.3.1 and 6.3.7)
             TLVR = utilities.Trho(TG, RG, RG)
+            TVENV = utilities.Trho(T[j], R[j], R[j])
             # Bouyancy of the parcel in the environment (Proxy of E94, EQN. 6.1.5)
-            TVRDIF[j,] = TLVR - TVENV[j]
+            TVRDIF[j,] = TLVR - TVENV
 
         #
         #   *** Calculate Parcel quantities ABOVE lifted condensation level   ***
@@ -326,11 +260,11 @@ def _cape_core(TP, RP, PP, T, R, P, TVENV, ascent_flag):
             #
             # Parcel total mixing ratio: either reversible (ascent_flag=0) or pseudo-adiabatic (ascent_flag=1)
             RMEAN = ascent_flag * RG + (1 - ascent_flag) * RP
-            # Parcel Density Temperature at this pressure (E94, EQN. 4.3.1 and 6.3.7);
-            # the environmental counterpart is precomputed per column in TVENV
+            # Parcel and Environmental Density Temperatures at this pressure (E94, EQN. 4.3.1 and 6.3.7)
             TLVR = utilities.Trho(TG, RMEAN, RG)
+            TENV = utilities.Trho(T[j], R[j], R[j])
             # Bouyancy of the parcel in the environment (Proxy of E94, EQN. 6.1.5)
-            TVRDIF[j,] = TLVR - TVENV[j]
+            TVRDIF[j,] = TLVR - TENV
 
     #
     #  ***  Begin loop to find Positive areas (PA) and Negative areas (NA) ***
@@ -602,16 +536,6 @@ def _pi_numba(
         if np.any(valid_T):
             NK = int(np.where(valid_T)[0][0])
 
-    # Hoisted environment preprocessing: the environment (T, R, P) is identical for
-    # every CAPE call below (only the parcel varies), so the missing-value scan,
-    # ptop slicing, ordering check, and per-level environmental density temperature
-    # are computed once per column instead of once per call (~20x). Identical math
-    # on identical inputs -> bit-identical results (certified).
-    ENV_STATUS, FIRST_LVL, N_ENV, TVENV_ENV = _cape_env_setup(T, R, P, ptop, miss_handle)
-    T_ENV = T[FIRST_LVL:N_ENV]
-    R_ENV = R[FIRST_LVL:N_ENV]
-    P_ENV = P[FIRST_LVL:N_ENV]
-
     #
     #   ***   Find environmental CAPE ***
     #
@@ -622,7 +546,7 @@ def _pi_numba(
     TP = T[NK]
     RP = R[NK]
     PP = P[NK]
-    result = _cape_hoisted(TP, RP, PP, ENV_STATUS, T_ENV, R_ENV, P_ENV, TVENV_ENV, ascent_flag)
+    result = cape(TP, RP, PP, T, R, P, ascent_flag, ptop, miss_handle)
     CAPEA = result[0]
     IFLAG = result[3]
     # if the CAPE function tripped a flag, set the output IFL to it
@@ -651,9 +575,7 @@ def _pi_numba(
         PP = min(PM, 1000.0)
         # find the mixing ratio with the average of the lowest level pressure and MSL
         RP = constants.EPS * R[NK] * MSL / (PP * (constants.EPS + R[NK]) - R[NK] * MSL)
-        CAPEM, TOB_ENV, LNB_ENV, IFLAG = _cape_hoisted(
-            TP, RP, PP, ENV_STATUS, T_ENV, R_ENV, P_ENV, TVENV_ENV, ascent_flag
-        )
+        CAPEM, TOB_ENV, LNB_ENV, IFLAG = cape(TP, RP, PP, T, R, P, ascent_flag, ptop, miss_handle)
         # if the CAPE function tripped a different flag, set the output IFL to it
         if IFLAG != 1:
             IFL = int(IFLAG)
@@ -667,7 +589,7 @@ def _pi_numba(
         TP = SSTK
         PP = min(PM, 1000.0)
         RP = utilities.rv(ES0, PP)
-        result = _cape_hoisted(TP, RP, PP, ENV_STATUS, T_ENV, R_ENV, P_ENV, TVENV_ENV, ascent_flag)
+        result = cape(TP, RP, PP, T, R, P, ascent_flag, ptop, miss_handle)
         CAPEMS, TOMS, LNBS, IFLAG = result
         # if the CAPE function tripped a flag, set the output IFL to it
         if IFLAG != 1:
