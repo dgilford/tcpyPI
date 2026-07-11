@@ -151,3 +151,17 @@ def test_chi_m_te12_from_profile_moist_adiabat_from_sst_runs():
     )
     assert np.isfinite(out)
 
+
+
+def test_vi_log_decomposition_closure_and_handcalc():
+    us, vp, ch = 12.0, 75.0, 0.5
+    d = tcpyPI.vi_log_decomposition(us, vp, ch)
+    assert np.isclose(d["shear"], np.log(us))
+    assert np.isclose(d["pi"], -np.log(vp))
+    assert np.isclose(d["chi"], np.log(ch))
+    # contributions sum to lnvi, and lnvi == ln(ventilation_index)
+    assert np.isclose(d["lnvi"], d["shear"] + d["pi"] + d["chi"])
+    assert np.isclose(d["lnvi"], np.log(tcpyPI.ventilation_index(us, vp, ch)))
+    # non-positive input -> nan
+    dn = tcpyPI.vi_log_decomposition(12.0, 75.0, 0.0)
+    assert np.isnan(dn["lnvi"]) and np.isnan(dn["chi"])

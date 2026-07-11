@@ -9,6 +9,8 @@ This is a lightweight convenience function to keep unit-agnostic ratio logic
 and NaN handling consistent across analyses.
 """
 
+from __future__ import annotations
+
 from typing import Any, Optional
 
 import numpy as np

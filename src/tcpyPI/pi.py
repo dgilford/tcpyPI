@@ -12,7 +12,7 @@ Full pyPI documentation, module validation, and sample code provided at:
 Download with the python Package index from the command line with:
    > pip install tcpypi
 
-Last updated 2/20/2025, v1.4
+Last updated 7/11/2026, v1.4
 
 Revision History:
   Revised on 9/24/2005 by K. Emanuel to fix convergence problems at high pressure
@@ -36,6 +36,12 @@ Revision History:
     - Added `outflow_source` option ("cape_star" vs "cape_env") to control how outflow temperature/level are defined.
     - Added log decomposition API (`log_decompose_pi`, `pi_log_decomposition`) and updated sample workflow/docs to use it.
     - Standardized main-module docstrings (NumPy style) and expanded README guidance on sensitivity/configuration options.
+  Revised 7/11/2026 by D. Gilford (pi()/cape() input handling + log-decomposition consolidation):
+    - `pi()` now sorts the input sounding to decreasing pressure, so profiles supplied in any vertical order are handled correctly.
+    - `pi()` returns missing (IFL=3) when the pressure array or MSL contains NaNs, instead of an unconverged value incorrectly flagged IFL=1.
+    - `cape()` now retains all levels with pressure > ptop (previously the level nearest ptop could be dropped when no level fell exactly at ptop).
+    - Under miss_handle=0, the parcel is now lifted from the lowest valid level (previously a NaN in the lowest level(s) produced a NaN parcel and unconverged output).
+    - Moved the PI log-decomposition into this module as `pi_log_decomposition` (from the former analyses.py) and removed the redundant run-and-decompose wrapper, matching the `vi_log_decomposition`/`gpi_log_decomposition` APIs.
 """
 # doctest: +ELLIPSIS
 
@@ -147,9 +153,12 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
         first_lvl=0
 
     # Populate new environmental profiles removing values above ptop and
-    # find new number, N, of profile levels with which to calculate CAPE
-    N=np.argmin(np.abs(P-ptop))
-    
+    # find new number, N, of profile levels with which to calculate CAPE.
+    # Keep every level with P > ptop (matching pcmin); with the profile ordered
+    # by decreasing pressure these are the leading N entries. Using argmin(|P-ptop|)
+    # would drop the topmost retained level whenever no level sits exactly at ptop.
+    N=int(np.count_nonzero(P > ptop))
+
     P=P[first_lvl:N]
     T=T[first_lvl:N]
     R=R[first_lvl:N]
@@ -501,9 +510,16 @@ def _pi_numba(
     # from Clausius-Clapeyron relation/August-Roche-Magnus formula
     ES0=utilities.es_cc(SSTC)
 
-    # define the level from which parcels lifted (first pressure level)
+    # define the level from which parcels are lifted. Normally the lowest level
+    # (index 0). Under miss_handle=0 (ignore-NaN), skip any leading missing
+    # temperature levels (e.g. sub-surface levels over topography) so the parcel is
+    # lifted from the lowest *valid* level rather than a NaN.
     NK=0
-    
+    if miss_handle == 0:
+        valid_T = ~np.isnan(T)
+        if np.any(valid_T):
+            NK = int(np.where(valid_T)[0][0])
+
     #
     #   ***   Find environmental CAPE *** 
     #
@@ -810,12 +826,33 @@ def pi(
             f"Invalid outflow_source={outflow_source!r}; expected 'cape_star' or 'cape_env'."
         )
 
+    P = np.asarray(P)
+    TC = np.asarray(TC)
+    R = np.asarray(R)
+
+    # Guard against NaNs the Numba core cannot flag safely. A NaN in the pressure
+    # array or in MSL poisons the CAPE integration and the pressure-convergence
+    # loop, which can otherwise exit early and return numerically plausible values
+    # with IFL=1. Fail fast to IFL=3 (missing data), matching NaN handling of the
+    # temperature profile.
+    if np.any(np.isnan(P)) or np.any(np.isnan(np.asarray(MSL, dtype=float))):
+        return (np.nan, np.nan, 3, np.nan, np.nan)
+
+    # Order-agnostic: the algorithm requires lowest index = lowest level
+    # (decreasing pressure). Sort the profile here so any input ordering is
+    # accepted; already-descending input is left untouched.
+    order = np.argsort(P)[::-1]
+    if not np.array_equal(order, np.arange(P.size)):
+        P = P[order]
+        TC = TC[order]
+        R = R[order]
+
     return _pi_numba(
         SSTC,
         MSL,
-        np.asarray(P),
-        np.asarray(TC),
-        np.asarray(R),
+        P,
+        TC,
+        R,
         CKCD=CKCD,
         ascent_flag=ascent_flag,
         diss_flag=diss_flag,
@@ -824,3 +861,81 @@ def pi(
         miss_handle=miss_handle,
         outflow_source_flag=outflow_source_flag,
     )
+
+
+def pi_log_decomposition(pi, sst, t0, CKCD=0.9, *, sst_units="K"):
+    r"""Log-decompose potential intensity into efficiency, disequilibrium, and Ck/Cd.
+
+    Following Wing et al. (2015, Eq. 2), PI separates additively in log space:
+
+    .. math:: \ln(V^2) = \ln(C_k/C_D) + \ln\!\frac{T_s - T_0}{T_0} + \ln(\text{disequilibrium})
+
+    This is the PI analogue of :func:`tcpyPI.vi_log_decomposition` and
+    :func:`tcpyPI.gpi_log_decomposition`. Inputs may be scalars or arrays (NumPy
+    broadcasting); invalid physical states yield ``nan``.
+
+    Parameters
+    ----------
+    pi : float or array-like
+        Potential intensity wind speed (m/s), e.g. the first output of :func:`pi`.
+    sst : float or array-like
+        Sea surface temperature, in units given by ``sst_units``.
+    t0 : float or array-like
+        Outflow temperature (K).
+    CKCD : float, default=0.9
+        Ratio of exchange coefficients (Ck/Cd).
+    sst_units : {"K", "C"}, default="K"
+        Units for ``sst``. :func:`pi` takes/returns SST-related quantities in
+        Celsius, so pass ``sst_units="C"`` when decomposing its outputs directly.
+
+    Returns
+    -------
+    tuple
+        ``(lnpi, lneff, lndiseq, lnCKCD)`` where ``lnpi = ln(pi**2) = 2*ln(pi)``.
+        A 4-tuple (rather than a dict like the VI/GPI decompositions) so it composes
+        with :func:`xarray.apply_ufunc` for gridded PI fields.
+
+    Notes
+    -----
+    Matches the scalar :func:`tcpyPI.utilities.decompose_pi`, including edge cases:
+    if efficiency <= 0, all terms are ``nan`` except ``lnCKCD``; if efficiency > 0
+    but pi <= 0, ``lneff`` is returned while ``lnpi`` and ``lndiseq`` are ``nan``.
+
+    Examples
+    --------
+        >>> pi_log_decomposition(70, 300, 200, CKCD=0.9) == utilities.decompose_pi(70, 300, 200, 0.9)
+        True
+    """
+    units = str(sst_units).upper()
+    if units not in ("K", "C"):
+        raise ValueError(f"Unsupported sst_units={sst_units!r}; expected 'C' or 'K'.")
+
+    pi_arr = np.asarray(pi, dtype=float)
+    t0_arr = np.asarray(t0, dtype=float)
+    sst_arr = np.asarray(sst, dtype=float)
+    # Convert SST to kelvin if given in Celsius (matches utilities.T_Ctok).
+    sst_k = sst_arr + 273.15 if units == "C" else sst_arr
+
+    # Fast path: preserve the exact scalar behavior of utilities.decompose_pi.
+    if pi_arr.ndim == 0 and t0_arr.ndim == 0 and sst_k.ndim == 0:
+        return utilities.decompose_pi(float(pi_arr), float(sst_k), float(t0_arr), CKCD=CKCD)
+
+    pi_arr, sst_k, t0_arr = np.broadcast_arrays(pi_arr, sst_k, t0_arr)
+    lnCKCD = float(np.log(CKCD))
+    efficiency = (sst_k - t0_arr) / t0_arr
+    valid_eff = efficiency > 0
+    valid = valid_eff & (pi_arr > 0)
+
+    lneff = np.full(efficiency.shape, np.nan)
+    lneff[valid_eff] = np.log(efficiency[valid_eff])
+    # `lnpi` requires efficiency > 0 as well as pi > 0 so the array path matches the
+    # scalar decompose_pi (all terms nan except lnCKCD when efficiency <= 0).
+    lnpi = np.full(pi_arr.shape, np.nan)
+    lnpi[valid] = 2.0 * np.log(pi_arr[valid])
+    lndiseq = np.full(pi_arr.shape, np.nan)
+    lndiseq[valid] = lnpi[valid] - lneff[valid] - lnCKCD
+
+    def _s(a):
+        return float(a) if a.ndim == 0 else a
+
+    return _s(lnpi), _s(lneff), _s(lndiseq), lnCKCD

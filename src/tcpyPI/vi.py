@@ -649,3 +649,59 @@ def ventilation_index(
 
 # Short alias matching the module name.
 vi = ventilation_index
+
+
+def vi_log_decomposition(u_shear, v_pot, chi_m):
+    """Additive log-space decomposition of the TE12 ventilation index.
+
+    Because :math:`\\Lambda = (u_{shear}/V_{PI})\\,\\chi_m` is multiplicative, it
+    separates additively in log space (cf. the PI log-decomposition):
+
+    .. math:: \\ln\\Lambda = \\ln u_{shear} - \\ln V_{PI} + \\ln\\chi_m
+
+    Parameters
+    ----------
+    u_shear : float or array-like
+        Deep-layer (e.g. 850-200 hPa) vertical wind shear magnitude (m/s).
+    v_pot : float or array-like
+        Potential intensity wind speed (m/s), e.g. from :func:`tcpyPI.pi`.
+    chi_m : float or array-like
+        Nondimensional midlevel moist-entropy deficit (TE12), e.g. from
+        :func:`entropy_deficit_te12_from_profile`.
+
+    Returns
+    -------
+    dict
+        The signed additive contributions that **sum to** ``lnvi``:
+
+        - ``shear``  = ``+ln(u_shear)``
+        - ``pi``     = ``-ln(V_PI)``
+        - ``chi``    = ``+ln(chi_m)``
+        - ``lnvi``   = ``ln(Lambda)`` (their sum)
+
+        Values are ``nan`` where an input is non-positive or non-finite (the
+        decomposition is only defined for strictly positive terms).
+
+    Examples
+    --------
+        >>> import tcpyPI
+        >>> d = tcpyPI.vi_log_decomposition(10.0, 80.0, 0.4)
+        >>> round(d["lnvi"] - (d["shear"] + d["pi"] + d["chi"]), 12)
+        0.0
+    """
+    us, vp, ch = np.broadcast_arrays(
+        np.asarray(u_shear, dtype=float),
+        np.asarray(v_pot, dtype=float),
+        np.asarray(chi_m, dtype=float),
+    )
+    bad = (us <= 0) | (vp <= 0) | (ch <= 0) | ~np.isfinite(us) | ~np.isfinite(vp) | ~np.isfinite(ch)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        shear = np.where(bad, np.nan, np.log(us))
+        pi_t = np.where(bad, np.nan, -np.log(vp))
+        chi_t = np.where(bad, np.nan, np.log(ch))
+    lnvi = shear + pi_t + chi_t
+
+    def _s(a):
+        return float(a) if a.ndim == 0 else a
+
+    return {"lnvi": _s(lnvi), "shear": _s(shear), "pi": _s(pi_t), "chi": _s(chi_t)}

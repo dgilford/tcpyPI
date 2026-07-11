@@ -11,11 +11,11 @@ from .pi import *
 from .constants import *
 from .utilities import *
 
-# User-facing analyses API
-from .analyses import log_decompose_pi, pi_log_decomposition
+# PI log-decomposition (Wing et al. 2015)
+from .pi import pi_log_decomposition
 
 # Ventilation Index (TE12) diagnostics
-from .vi import ventilation_index, vi
+from .vi import ventilation_index, vi, vi_log_decomposition
 from .vi import entropy_deficit_te12, entropy_deficit_te12_from_profile
 
 # Power Dissipation Index (PDI) (EXPERIMENTAL)
@@ -25,4 +25,4 @@ from .pdi import power_dissipation_index, pdi
 from .relative_intensity import relative_intensity
 
 # Genesis Potential Index (GPI) (EXPERIMENTAL)
-from .gpi import genesis_potential_index, gpi
+from .gpi import genesis_potential_index, gpi, gpi_log_decomposition

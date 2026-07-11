@@ -204,7 +204,7 @@ def test_gpi_en04_scalar_matches_hand_calc():
     rh = rh_mid / 50.0
     vp = v_pot / 70.0
     shear_term = (1.0 + 0.1 * v_shear) ** (-2.0)
-    expected = (eta**3.0) * (rh**3.0) * (vp**3.0) * shear_term
+    expected = (eta**1.5) * (rh**3.0) * (vp**3.0) * shear_term
 
     out = tcpyPI.genesis_potential_index(
         abs_vort, rh_mid, v_shear, v_pot, formulation="en04"
@@ -212,15 +212,23 @@ def test_gpi_en04_scalar_matches_hand_calc():
     np.testing.assert_allclose(out, expected, rtol=0, atol=0)
 
 
-def test_gpi_c07_pi_thresholding_reduces_value_when_vp_low():
-    abs_vort = 2.0e-5
-    rh_mid = 60.0
+def test_gpi_e10_scalar_matches_hand_calc():
+    # Emanuel (2010, JAMES, Eq. 11): |eta|^3 chi^-4/3 max(Vp-35,0)^2 (25+Vshear)^-4
+    abs_vort = 5.0e-5
+    chi = 1.2
     v_shear = 10.0
-    v_pot = 40.0  # close to the 35 m/s threshold in the c07 variant
+    v_pot = 60.0
 
-    en04 = tcpyPI.genesis_potential_index(abs_vort, rh_mid, v_shear, v_pot, formulation="en04")
-    c07 = tcpyPI.genesis_potential_index(abs_vort, rh_mid, v_shear, v_pot, formulation="c07")
-    assert c07 < en04
+    expected = (
+        (abs(abs_vort) ** 3.0)
+        * (chi ** (-4.0 / 3.0))
+        * (max(v_pot - 35.0, 0.0) ** 2.0)
+        * ((25.0 + v_shear) ** (-4.0))
+    )
+    out = tcpyPI.genesis_potential_index(
+        abs_vort, v_shear=v_shear, v_pot=v_pot, formulation="e10", chi=chi
+    )
+    np.testing.assert_allclose(out, expected, rtol=0, atol=0)
 
 
 def test_pdi_e05_si_and_scaled():

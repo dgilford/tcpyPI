@@ -49,4 +49,20 @@ if os.getenv("TCPYPI_DISABLE_NUMBA") == "1":
 else:
     import numba as nb
 
-    njit = nb.njit
+    def njit(*args, **kwargs):
+        """``numba.njit`` with on-disk caching enabled by default.
+
+        ``cache=True`` avoids recompiling the PI/CAPE kernels in every fresh Python
+        process (first-call JIT is otherwise repeated on each run). Override per call
+        with ``@njit(cache=False)`` if a specific function is not cacheable.
+
+        Do NOT enable ``fastmath`` here or on any tcpyPI kernel: the algorithm relies
+        on IEEE NaN semantics (e.g. ``NaN > 0`` is False, and ``np.min``/``max`` NaN
+        propagation) for its missing-value handling, which ``fastmath`` would silently
+        break.
+        """
+        kwargs.setdefault("cache", True)
+        if len(args) == 1 and callable(args[0]) and not isinstance(args[0], str):
+            # Bare ``@njit`` usage: apply options via a second call.
+            return nb.njit(**kwargs)(args[0])
+        return nb.njit(*args, **kwargs)
