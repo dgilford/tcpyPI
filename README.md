@@ -17,17 +17,17 @@ The goals in developing and maintaining pyPI are to:
 If you have any questions, comments, or feedback, please [contact the developer](mailto:dgilford@climatecentral.org) or open an [Issue](https://github.com/dgilford/pyPI/issues) in the repository. A paper detailing pyPI is published [at Geoscientific Model Development](https://gmd.copernicus.org/articles/14/2351/2021/gmd-14-2351-2021.pdf).
 
 ## Citation
-pyPI was developed by [Daniel Gilford](https://github.com/dgilford) and has been archived on Zenodo:
+pyPI was developed by [Daniel Gilford](https://github.com/dgilford) and is archived on Zenodo. A machine-readable [`CITATION.cff`](CITATION.cff) is included.
 
-[![DOI](https://zenodo.org/badge/247725622.svg)](https://zenodo.org/badge/latestdoi/247725622)
+[![DOI](https://zenodo.org/badge/247725622.svg)](https://doi.org/10.5281/zenodo.3756005)
 
-If you use pyPI in your work, please include the citations:
+If you use pyPI in your work, please cite **both** the paper and the software. The Zenodo **concept DOI** below always resolves to the latest version (cite a specific version DOI if you need it, e.g. `10.5281/zenodo.21301851` for v1.4.2):
 
 > Gilford, D. M.: pyPI (v1.3): Tropical Cyclone Potential Intensity Calculations in Python, Geosci. Model Dev., 14, 2351–2369, https://doi.org/10.5194/gmd-14-2351-2021, 2021.
 
 and
 
-> Gilford, D. M. 2020: pyPI: Potential Intensity Calculations in Python, pyPI v1.3. Zenodo. http://doi.org/10.5281/zenodo.3985975
+> Gilford, D. M.: tcpyPI (pyPI): Tropical Cyclone Potential Intensity Calculations in Python. Zenodo. https://doi.org/10.5281/zenodo.3756005
 
 
 ## Full pyPI Description
@@ -35,9 +35,11 @@ and
 Please read [pyPI_Users_Guide_v1.3.pdf](pyPI_Users_Guide_v1.3.pdf) for a full overview and details on pyPI.
 The description includes the pyPI background, a PI computation derivation, validation against the commonly-used MATLAB algorithm (pcmin), and a set of sample analyses.
 
+> **Note:** the User's Guide documents v1.3 and predates the newer options and diagnostics (`outflow_source`, the log-decomposition API, and the experimental ventilation, genesis-potential, power-dissipation, and relative-intensity utilities). For those, see the sections below and the demo notebooks.
+
 ## Getting Started
 
-pyPI requires **Python version 3.7+** to run.
+pyPI requires **Python 3.10+** to run.
 To get pyPI up and running on your system, clone the repository and ensure that you have the required dependencies.
 
 ### Installation
@@ -54,11 +56,52 @@ pip install tcpypi
 
 ### tcpyPI Dependencies
 
-* NumPy
-* [Numba](http://numba.pydata.org/)
+Core (installed automatically): [NumPy](https://numpy.org/) (`>=1.26`) and [Numba](http://numba.pydata.org/) (`>=0.59`).
 
-Not required by tcpyPI---but highly recommended!---is the versatility in calculating PI over large datasets provided by [xarray](http://xarray.pydata.org/en/stable/).
-Dependency versions were originally handled by [Dependabot](https://dependabot.com/), but the code was not resilient to these changes so they are currently defunct (as of 10 August 2022). Please [notify me](mailto:dgilford@climatecentral.org) immediately if installation problems persist.
+Optional extras:
+
+```bash
+pip install "tcpypi[xarray]"   # xarray + h5netcdf, to apply PI over gridded datasets
+pip install "tcpypi[demo]"     # the above + matplotlib + pooch, for the example notebooks
+```
+
+Applying PI over large datasets is easy and highly recommended via [xarray](https://docs.xarray.dev/) (see the Quickstart below). tcpyPI's Numba kernels use on-disk caching (`cache=True`), so after the first call the compiled code is reused across sessions.
+
+### Quickstart (5 minutes)
+
+Compute PI for a single sounding (ordered surface → top, i.e. decreasing pressure):
+
+```python
+import numpy as np
+from tcpyPI import pi
+
+P  = np.array([1000.,975,950,925,900,850,800,750,700,600,500,400,300,250,200,150,100,70,50])  # hPa
+TC = np.array([28.,25,24,23,22,19,16,13,11,5,-2,-11,-27,-37,-49,-65,-79,-73,-64])              # deg C
+R  = np.array([18.,18,16,13,12,10,9,7,4,1.7,1.7,0.2,0.1,0.11,0.05,0.014,0.003,0.002,0.002])    # g/kg (mixing ratio)
+SSTC, MSL = 30.0, 1010.0   # deg C, hPa
+
+vmax, pmin, ifl, t0, otl = pi(SSTC, MSL, P, TC, R)
+print(f"PI = {vmax:.1f} m/s, Pmin = {pmin:.1f} hPa, flag = {ifl}")
+# PI = 81.9 m/s, Pmin = 903.3 hPa, flag = 1
+```
+
+Apply it over a gridded dataset with xarray (vectorized; this is what `run_sample.py` does):
+
+```python
+import xarray as xr
+from tcpyPI import pi
+
+ds = xr.open_dataset("data/sample_data.nc")   # dims: month, p, lat, lon
+vmax, pmin, ifl, t0, otl = xr.apply_ufunc(
+    pi, ds.sst, ds.msl, ds.p, ds.t, ds.q,
+    kwargs=dict(CKCD=0.9),
+    input_core_dims=[[], [], ["p"], ["p"], ["p"]],
+    output_core_dims=[[], [], [], [], []],
+    vectorize=True,
+)
+```
+
+For very large grids, chunk the dataset with Dask and add `dask="parallelized", output_dtypes=[float]*5` to `apply_ufunc` — PI is computed independently per column, so it parallelizes trivially.
 
 ### Python Implementation of "pc_min" (BE02 PI Calculator)
 
@@ -96,11 +139,13 @@ vmax, pmin, ifl, t0, otl = pi(SSTC, MSL, P, TC, R, CKCD=0.9, diss_flag=1, outflo
 tcpyPI provides a simple API for log-decomposing PI into efficiency, disequilibrium, and `Ck/Cd` terms (where `lnpi = ln(V^2)`):
 
 ```python
-from tcpyPI import log_decompose_pi, pi_log_decomposition
+from tcpyPI import pi, pi_log_decomposition
 
-out = pi_log_decomposition(SSTC, MSL, P, TC, R, CKCD=0.9)  # SSTC/TC in Celsius
-lnpi, lneff, lndiseq, lnCKCD = log_decompose_pi(out["vmax"], SSTC, out["t0"], CKCD=0.9, sst_units="C")
+vmax, pmin, ifl, t0, otl = pi(SSTC, MSL, P, TC, R, CKCD=0.9)   # SSTC/TC in Celsius
+lnpi, lneff, lndiseq, lnCKCD = pi_log_decomposition(vmax, SSTC, t0, CKCD=0.9, sst_units="C")
 ```
+
+`pi_log_decomposition` mirrors `vi_log_decomposition` and `gpi_log_decomposition`: give it the (already-computed) index inputs and it returns the additive log-space terms.
 
 ### Ventilation Index (Tang & Emanuel 2012) (EXPERIMENTAL)
 
@@ -191,41 +236,47 @@ nu = tcpyPI.relative_intensity(vmax_series, vpi_series)
 
 tcpyPI includes an **experimental** Genesis Potential Index (GPI) utility:
 
-Equations (as implemented here; see Emanuel & Nolan 2004; Camargo et al. 2007):
+Equations (as implemented here):
 
-For `"en04"`:
+For `"en04"` (Emanuel & Nolan 2004; Camargo et al. 2007):
 
-$$\mathrm{GPI} = \left(10^5\,|\eta|\right)^3\,\left(\frac{\mathrm{RH}}{50}\right)^3\,\left(\frac{V_{PI}}{70}\right)^3\,\left(1 + 0.1\,V_{\mathrm{shear}}\right)^{-2}$$
+$$\mathrm{GPI} = \left(10^5\,|\eta|\right)^{3/2}\,\left(\frac{\mathrm{RH}}{50}\right)^3\,\left(\frac{V_{PI}}{70}\right)^3\,\left(1 + 0.1\,V_{\mathrm{shear}}\right)^{-2}$$
 
-For `"c07"` (PI-thresholded variant):
+For `"e10"` (Emanuel 2010, JAMES, Eq. 11):
 
-$$\mathrm{GPI} = \left(10^5\,|\eta|\right)^3\,\left(\frac{\mathrm{RH}}{50}\right)^3\,\left(\frac{\max(V_{PI}-35,\,0)}{70}\right)^3\,\left(1 + 0.1\,V_{\mathrm{shear}}\right)^{-2}$$
+$$\mathrm{GPI} = |\eta|^{3}\,\chi_m^{-4/3}\,\max(V_{PI}-35,\,0)^{2}\,\left(25 + V_{\mathrm{shear}}\right)^{-4}$$
 
-where $|\eta|$ is low-level absolute vorticity ($s^{-1}$; commonly 850 hPa), RH is midlevel relative humidity (%; commonly 700 hPa),
-$V_{\mathrm{shear}}$ is deep-layer shear magnitude (m/s; commonly 850–200 hPa), and $V_{PI}$ is potential intensity (m/s).
+where $|\eta|$ is low-level absolute vorticity ($s^{-1}$; commonly 850 hPa) and $V_{PI}$ is potential intensity (m/s). For `en04`, RH is midlevel relative humidity (%; commonly 700 hPa) and $V_{\mathrm{shear}}$ is the 850–200 hPa shear magnitude (m/s). For `e10`, $\chi_m$ is the nondimensional midlevel (600 hPa) moist-entropy deficit of Tang & Emanuel (2012) (i.e. `tcpyPI.entropy_deficit_te12_from_profile`), and $V_{\mathrm{shear}}$ is the 850–250 hPa shear magnitude (m/s).
+
+**GPI is a relative index** (defined up to a constant of proportionality), so `en04` and `e10` magnitudes are *not* directly comparable to each other.
 
 ```python
 import tcpyPI
 
 # Inputs (typical choices):
-# - abs_vort: |η| at ~850 hPa (s^-1)
-# - rh_mid: RH at ~700 hPa (%)
-# - v_shear: 850–200 hPa shear magnitude (m/s)
+# - abs_vort: absolute vorticity at ~850 hPa (s^-1); the sign is ignored (|eta| is used)
+# - v_shear: deep-layer shear magnitude (m/s)
 # - v_pot: potential intensity (m/s), e.g. from tcpyPI.pi()
 
+# en04 (RH-based); rh_mid = RH at ~700 hPa (%)
 gpi_en04 = tcpyPI.genesis_potential_index(abs_vort, rh_mid, v_shear, v_pot, formulation="en04")
-gpi_c07 = tcpyPI.genesis_potential_index(abs_vort, rh_mid, v_shear, v_pot, formulation="c07")
+
+# e10 (entropy-deficit-based): compute chi_m via the ventilation-index utility
+# (see the Ventilation Index section for the full call and options), then:
+gpi_e10 = tcpyPI.genesis_potential_index(
+    abs_vort, v_shear=v_shear, v_pot=v_pot, formulation="e10", chi=chi_m
+)
 ```
 
 Formulations:
-- `"en04"`: Emanuel & Nolan (2004)-style
-- `"c07"`: Camargo et al. (2007)-style variant with PI thresholding
+- `"en04"`: Emanuel & Nolan (2004) / Camargo et al. (2007), relative-humidity-based
+- `"e10"`: Emanuel (2010), midlevel moist-entropy-deficit-based ($\chi_m$); requires `chi`
 
 See `notebooks/genesis_potential_index_demo.ipynb` for an end-to-end worked example.
 
 ### Running a pyPI Sample
 
-Included in the pyPI release is a sample script [run_sample.py](run_sample.py) which runs global sample data from MERRA2 (in 2004) through pi.py, vectorizes the output, and performs several simple analyses. To run, simply:
+Included in the pyPI release is a sample script [run_sample.py](run_sample.py) which runs a compact sample dataset (ERA5 October 2024 monthly-mean conditions; “Milton era”) through `pi.py`, vectorizes the output, and performs several simple analyses. To run, simply:
 ```
 python run_sample.py
 ```
@@ -238,18 +289,22 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 * **[run_sample.py](run_sample.py)** - Example script that computes PI and accompanying analyses over the entire sample dataset
 
 #### Data
-* [sample_data.nc](./data/sample_data.nc) - Sample atmospheric and ocean state variable data and BE02 MATLAB output data; values are monthly averages over the globe from MERRA2 in 2004.
+* [sample_data.nc](./data/sample_data.nc) - Sample state variables from ERA5 2024 monthly means over the North Atlantic (12 months; ~2° subsample; SST masked to ocean). Includes the core PI inputs (SST, MSL, T, q) plus winds, RH, and vorticity for the GPI/ventilation-index analyses. Built by [data/build_sample_data_era5_oct2024.py](./data/build_sample_data_era5_oct2024.py) from the (untracked, regenerable) ERA5 downloads.
+* [era5_demo_subset.nc](./data/era5_demo_subset.nc) - Small single-column ERA5 environment (Hurricane Milton 2024 reference location) used by the ventilation-index and GPI demo notebooks.
 * [mdr.json](./data/mdr.json) - Main Development Region definitions from [Gilford et al. (2017)](https://journals.ametsoc.org/doi/abs/10.1175/JCLI-D-16-0827.1)
-* [raw_sample_output.nc](./data/raw_sample_output.nc) - Sample outputs from pi.py *only* created by run_sample.py
-* [full_sample_output.nc](./data/full_sample_output.nc) - Full set of sample outputs from pi.py as well as sample analyses such as PI decomposition
+* [raw_sample_output.nc](./data/raw_sample_output.nc) - Sample outputs from pi.py *only*, created by run_sample.py
+* [full_sample_output.nc](./data/full_sample_output.nc) - Full set of sample outputs from pi.py plus analyses (efficiency, disequilibrium, log decomposition)
 
 #### Validation and Testing Notebooks
-* **[test_pi_calc.ipynb](./notebooks/test_pi_calc.ipynb)** - Simple code showing a single call of pi.py and testing the speed of the algorithm
-* **[verify_pi.ipynb](./notebooks/verify_pi.ipynb)** - Notebook validating/verifying pyPI outputs against BE02 MATLAB output data
-* **[sample_output_analyses.ipynb](./notebooks/sample_output_analyses.ipynb)** - Notebook showing examples of pyPI outputs and simple PI analyses
+* **[test_pi_calc.ipynb](./notebooks/test_pi_calc.ipynb)** - Single call of pi.py on the 2024 sample plus a quick run-time check
+* **[verify_pi.ipynb](./notebooks/verify_pi.ipynb)** - Validates pyPI outputs against the BE02 MATLAB algorithm (pc_min); reference outputs for the 2024 sample are generated by [reference_calculations.m](./matlab_scripts/reference_calculations.m)
+* **[illustrate_numerical_instability.ipynb](./notebooks/illustrate_numerical_instability.ipynb)** - Documents a marginal (near-neutral) sounding where the BE02 pressure solver does not converge (`IFL=2`), contrasted with an adjacent-day profile that does; explains the fixed-point oscillation and the `IFL`-filtering guidance
+* **[sample_output_analyses.ipynb](./notebooks/sample_output_analyses.ipynb)** - North Atlantic 2024 seasonal analysis: PI, efficiency/disequilibrium, GPI, and ventilation index, each with a log-decomposition
+* **[efficiency_demo.ipynb](./notebooks/efficiency_demo.ipynb)** - The tropical-cyclone (Carnot) efficiency term $(T_s-T_0)/T_0$ from BE02: what it represents and its sensitivity to SST and outflow temperature
+* **[dissipative_heating_effect.ipynb](./notebooks/dissipative_heating_effect.ipynb)** - Compares PI with and without dissipative heating (`diss_flag`); reproduces the ~20–25% intensification noted by Bister & Emanuel (1998)
 * **[ventilation_index_demo.ipynb](./notebooks/ventilation_index_demo.ipynb)** - Experimental TE12 ventilation index: end-to-end calculation and diagnostics
-* **[power_dissipation_index_demo.ipynb](./notebooks/power_dissipation_index_demo.ipynb)** - Experimental PDI: synthetic track + PI-derived winds + integrated PDI
-* **[genesis_potential_index_demo.ipynb](./notebooks/genesis_potential_index_demo.ipynb)** - Experimental GPI: worked example and sensitivities
+* **[power_dissipation_index_demo.ipynb](./notebooks/power_dissipation_index_demo.ipynb)** - Experimental PDI: computed from observed IBTrACS intensity for Hurricane Milton (2024)
+* **[genesis_potential_index_demo.ipynb](./notebooks/genesis_potential_index_demo.ipynb)** - Experimental GPI (`en04` and Emanuel-2010 `e10`): worked example and sensitivities
 
 #### Misc.
 * **[utilities.py](./src/tcpyPI/utilities.py)** - Set of functions used in the pyPI codebase
@@ -257,7 +312,7 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 * **[vi.py](./src/tcpyPI/vi.py)** - Experimental TE12 ventilation index and entropy deficit utilities
 * **[pdi.py](./src/tcpyPI/pdi.py)** - Experimental power dissipation index utility
 * **[gpi.py](./src/tcpyPI/gpi.py)** - Experimental genesis potential index utility
-* **[reference_calculations.m](./matlab_scripts/reference_calculations.m)** - Script used to generate sample BE02 MATLAB output data from original MERRA2 files monthly mean; included for posterity and transparency
+* **[reference_calculations.m](./matlab_scripts/reference_calculations.m)** - Reads `data/sample_data.nc` and generates BE02 MATLAB (pc_min) reference outputs used by verify_pi.ipynb
 * **[pc_min.m](./matlab_scripts/pc_min.m)** - Original BE02 algorithm from MATLAB, adapted and used to produce analyses of Gilford et al. ([2017](https://journals.ametsoc.org/doi/abs/10.1175/JCLI-D-16-0827.1); [2019](https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1))
 * **[clock_pypi.ipynb](./notebooks/clock_pypi.ipynb)** - Notebook estimating the time it takes to run pyPI on a laptop
 
@@ -268,6 +323,10 @@ and examine the outputs locally produced in [full_sample_output.nc](./data/full_
 ### Contributor(s)
 * **Ben Mares** - *Modernization* - [GitHub](https://github.com/maresb)
 * **Daniel Rothenberg, PhD** - *Numba Optimization & Sample Code* - [GitHub](https://github.com/darothen)
+
+## Development & AI transparency
+
+Recent maintenance of tcpyPI (v1.4.x) has been **AI-assisted** (with Claude Code) for code review, refactoring, documentation, and test scaffolding. Every change is **human-reviewed and hand-edited by the author** and is guarded by the automated test suite: the `pi()` doctests pin scalar outputs to ~13 significant figures, and `tests/test_run_sample.py` pins the gridded sample outputs at `rtol=1e-13`. AI assistance is used as a productivity tool — the science, defaults, and interfaces remain the author's.
 
 ## License
 

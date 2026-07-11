@@ -1,0 +1,1 @@
+See [AGENTS.md](AGENTS.md) for repository structure, build/test commands, the data policy, and the scientific invariants (e.g. never enable Numba `fastmath`). That file is the canonical guide for both AI agents and human contributors.

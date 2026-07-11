@@ -1,0 +1,46 @@
+cff-version: 1.2.0
+message: >-
+  If you use tcpyPI, please cite both the peer-reviewed paper (preferred-citation
+  below) and the software archive (the concept DOI, which always resolves to the
+  latest version).
+title: "tcpyPI (pyPI): Tropical Cyclone Potential Intensity Calculations in Python"
+abstract: >-
+  tcpyPI ('pyPI') computes and validates tropical cyclone potential intensity (PI)
+  in Python. It is a documented, validated port of the Bister and Emanuel (2002)
+  algorithm (originally FORTRAN, then MATLAB, by Kerry Emanuel), and includes
+  utilities for PI log-decomposition and experimental TC diagnostics (ventilation
+  index, genesis potential index, power dissipation index, relative intensity).
+type: software
+authors:
+  - family-names: Gilford
+    given-names: Daniel M.
+    affiliation: "Climate Central"
+    orcid: "https://orcid.org/0000-0003-2422-0887"
+repository-code: "https://github.com/dgilford/tcpyPI"
+url: "https://github.com/dgilford/tcpyPI"
+license: MIT
+version: 1.4.2
+date-released: 2026-07-10
+identifiers:
+  - type: doi
+    # Concept DOI ("all versions") — the primary identifier to cite; it always
+    # resolves to the latest version.
+    value: 10.5281/zenodo.3756005
+    description: "Concept DOI (all versions) of the tcpyPI/pyPI software archive"
+  - type: doi
+    value: 10.5281/zenodo.21301851
+    description: "Version DOI for tcpyPI v1.4.2"
+preferred-citation:
+  type: article
+  title: "pyPI (v1.3): Tropical Cyclone Potential Intensity Calculations in Python"
+  authors:
+    - family-names: Gilford
+      given-names: Daniel M.
+      orcid: "https://orcid.org/0000-0003-2422-0887"
+  journal: "Geoscientific Model Development"
+  volume: 14
+  issue: 4
+  start: 2351
+  end: 2369
+  year: 2021
+  doi: 10.5194/gmd-14-2351-2021
