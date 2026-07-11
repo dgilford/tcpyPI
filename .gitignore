@@ -24,19 +24,29 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Data
+# Data: ignore all netCDF by default; allowlist ONLY the small tracked samples.
 *.nc
-!data/*.nc
+!data/sample_data.nc
+!data/raw_sample_output.nc
+!data/full_sample_output.nc
+!data/era5_demo_subset.nc
+!data/matlab_pi_reference_2024.nc
 
-# Local agent/dev artifacts (not tracked)
-AGENTS.md
-notebooks/recreate_numerical_instability.ipynb
+# Raw/intermediate ERA5 inputs (regenerate via data/download_era5*.py; never commit)
+data/era5_pl_monthlymeans_*.nc
+data/data_stream-*.nc
 
-# Local reference papers (not tracked)
-papers/
+# Legacy MERRA2-2004 data (deprecated; the repo is all-2024/Milton. Keep local
+# copies out of the repo.)
+data/*_2004.nc
 
 # Large external datasets (download locally, do not commit)
 data/IBTrACS*.nc
 
+# Local reference papers (not tracked)
+papers/
+
 # Local session/handoff notes (not tracked)
 SESSION_NOTES.md
+REVIEW_2026-07.md
+MCP_PLAN.md
