@@ -287,6 +287,19 @@ python run_sample.py
 ```
 and examine the outputs locally produced in [full_sample_output.nc](./data/full_sample_output.nc).
 
+### Use tcpyPI with AI (MCP server)
+
+tcpyPI ships a [Model Context Protocol](https://modelcontextprotocol.io/) server that gives AI assistants (Claude Desktop, Claude Code, Cursor, and other MCP clients) direct access to the validated PI calculation and genesis diagnostics — instead of a model improvising moist thermodynamics from memory. Install and register:
+
+```
+pip install "tcpypi[mcp]"
+```
+
+- **Claude Code:** `claude mcp add tcpypi -- tcpypi-mcp`
+- **Claude Desktop / Cursor / other clients:** add a stdio server entry running `tcpypi-mcp` (or, without a prior install, command `uvx` with args `--from "tcpypi[mcp]" tcpypi-mcp`).
+
+Five tools are exposed: `compute_pi` (single sounding), `compute_pi_grid` (netCDF file in → netCDF file out, whole-field fast path), `decompose_pi` (Wing et al. 2015 log decomposition), `ventilation_index` (TE12), and `genesis_potential_index` (EN04/E10). Every result carries provenance (package version, DOI, citations, knob settings) and the `ifl` status contract (only `ifl == 1` output is trustworthy). Units are fixed (°C, hPa, g/kg) and **never converted silently**: gridded inputs must carry matching netCDF `units` attributes, and mismatches are rejected with a clear error.
+
 ## File Descriptions
 
 #### Key files
