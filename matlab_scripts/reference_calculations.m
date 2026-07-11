@@ -1,251 +1,107 @@
 %% Description and Setup
-% This MATLAB script calculates Potential Intensity using the BE02 MATLAB
-% algorithm and outputs the data into "sample_data.nc" for comparison with
-% the Python PI algorithm (pi.py). The sample data are average monthly values
-% from MERRA2 in 2004.
+% Generates BE02 MATLAB reference potential-intensity outputs for validating pyPI.
+%
+% Reads the pyPI 2024 sample (data/sample_data.nc), runs the BE02 MATLAB algorithm
+% (pc_min.m) over every ocean column, and writes the reference outputs to
+% data/matlab_pi_reference_2024.nc. The Python notebook verify_pi.ipynb merges this
+% file with sample_data.nc and compares pyPI vs MATLAB.
+%
+% Run this script from the matlab_scripts/ directory (it needs pc_min.m alongside).
+%
+% NOTE on dimension order: MATLAB's ncread returns netCDF variables with their
+% dimension order reversed, so sample_data.nc variable t (month,p,lat,lon) is read
+% here as [nlon,nlat,np,nmon]. We write the outputs with dims {lon,lat,month} so
+% that xarray reads them back as (month,lat,lon), matching sample_data.nc.
 
-% setup
 close all
 clear
-% add paths to run the code
-path=pwd;
-addpath(strcat(path,'/..'))
-addpath(strcat(path,'/../data/'))
-addpath(strcat(path,'/../data/gse17_mat_files/'))
 
-%% Load Data and Prep for PI calculation
+% paths
+addpath(pwd)                                    % pc_min.m lives alongside this script
 
-% define the data filenames
-slp_file='merra2_slp_2004_monthly_2.5x2.5.mat';
-T_file='merra2_T_2004_monthly_2.5x2.5.mat';
-TS_file='merra2_TS_2004_monthly_2.5x2.5.mat';
-q_file='merra2_q_2004_monthly_2.5x2.5.mat';
+% Locate the input sample. Works whether run from matlab_scripts/ (repo layout) or
+% from a flat folder with all files uploaded together (e.g. MATLAB Online).
+in_file = fullfile('..', 'data', 'sample_data.nc');
+if ~isfile(in_file)
+    in_file = 'sample_data.nc';
+end
+out_dir = fullfile('..', 'data');
+if ~isfolder(out_dir)
+    out_dir = '.';
+end
+out_file = fullfile(out_dir, 'matlab_pi_reference_2024.nc');
 
-% load the land-sea mask
-lsm_shift=ncread('lsmask_2.5x2.5.nc','lsm');
-lsm_lon=ncread('lsmask_2.5x2.5.nc','longitude');
-% shift the land-sea mask
-lsm_lon=lsm_lon-180;
-minlon=find(lsm_lon==min(abs(lsm_lon)));
-lsm=circshift(lsm_shift,[-minlon+1 0]);
-clear minlon lsm_lon
+%% Load the pyPI sample (already in pyPI units: SST/T in C, MSL in hPa, q in g/kg)
 
-% load data
-slp_dat=load(slp_file);     % in Pa
-T_dat=load(T_file);         % in K
-TS_dat=load(TS_file);       % in K
-q_dat=load(q_file);         % in kg/kg
-clear slp_file T_file TS_file q_file
+p     = ncread(in_file, 'p');       % [np]                 hPa
+lat   = ncread(in_file, 'lat');     % [nlat]               degrees north
+lon   = ncread(in_file, 'lon');     % [nlon]               degrees east (0-360)
+month = ncread(in_file, 'month');   % [nmon]               month number (1-12)
+sst   = ncread(in_file, 'sst');     % [nlon,nlat,nmon]     C   (NaN over land)
+msl   = ncread(in_file, 'msl');     % [nlon,nlat,nmon]     hPa
+T     = ncread(in_file, 't');       % [nlon,nlat,np,nmon]  C
+q     = ncread(in_file, 'q');       % [nlon,nlat,np,nmon]  g/kg
 
-% define grids (pressure in hPa)
-lat=slp_dat.latgrid; lon=slp_dat.longrid; p=T_dat.lvlgrid;
-nlon=length(lon); nlat=length(lat);
-
-% convert to the appropriate units and store
-q=q_dat.q.*1e3;                     % kg/kg	-->	g/kg	(approximating q == r/(1+r) ~~ r)
-sst=squeeze(TS_dat.TS)-273.15;		% K	-->	C	(skin temperature -->	sst)
-T=T_dat.T-273.15;                   % K	-->	C
-msl=slp_dat.slp./100;               % Pa -->	hPa
-
-% choose a month to calculate TC PI, subset the data
-% mon=9;
-% q=squeeze(q(:,:,:,mon));
-% sst=squeeze(sst(:,:,:,mon));
-% T=squeeze(T(:,:,:,mon));
-% msl=squeeze(msl(:,:,mon));
+nlon = length(lon); nlat = length(lat); nmon = length(month);
 
 %% Calculate Potential Intensity with the BE02 algorithm (pc_min.m)
+% pc_min signature: [PMIN,VMAX,TO,LNB,IFL] = pc_min(sst, msl, p, T_column, q_column)
 
-% inputs:
-% sst 
-% msl
-% T
-% q
-% 
-% outputs:
-% VMAX
-% PMIN
-% TO
-% LNB
-% IFL
+VMAX = nan(nlon, nlat, nmon);
+PMIN = nan(nlon, nlat, nmon);
+TO   = nan(nlon, nlat, nmon);
+LNB  = nan(nlon, nlat, nmon);
+IFL  = nan(nlon, nlat, nmon);
 
-% create the output arrays
-TO=nan(nlon,nlat,12);
-LNB=nan(nlon,nlat,12);
-VMAX=nan(nlon,nlat,12);
-IFL=nan(nlon,nlat,12);
-PMIN=nan(nlon,nlat,12);
-
-% calculate TC PI for the average month
-for x=1:nlon
-	for y=1:nlat
-        for m=1:12
-            if (squeeze(sst(x,y,m)) > 0)
-                [PMIN(x,y,m),VMAX(x,y,m),TO(x,y,m),LNB(x,y,m),IFL(x,y,m)]= ...
-                    pc_min(squeeze(sst(x,y,m)),squeeze(msl(x,y,m)), ...
-                    squeeze(p),squeeze(T(x,y,:,m)),squeeze(q(x,y,:,m)));
+for x = 1:nlon
+    for y = 1:nlat
+        for m = 1:nmon
+            % SST is NaN over land (masked in the sample); skip those columns
+            if (~isnan(sst(x, y, m)) && sst(x, y, m) > 0)
+                [PMIN(x, y, m), VMAX(x, y, m), TO(x, y, m), LNB(x, y, m), IFL(x, y, m)] = ...
+                    pc_min(squeeze(sst(x, y, m)), squeeze(msl(x, y, m)), ...
+                           squeeze(p), squeeze(T(x, y, :, m)), squeeze(q(x, y, :, m)));
             end
-		end
-    end
-end
-
-%% Test speed of PI calculation
-xi=1;
-yi=38;
-mi=1;
-for k=1:100
-    t = cputime;
-    [check,check2,check3,check4]=pc_min(squeeze(sst(xi,yi,mi)),squeeze(msl(xi,yi,mi)), ...
-                    squeeze(p),squeeze(T(xi,yi,:,mi)),squeeze(q(xi,yi,:,mi)));
-    e = cputime-t;
-    time_elapsed(k,1)=e;
-end
-
-nanmean(time_elapsed)
-hist(time_elapsed)
-
-%% Apply Land-sea mask
-
-% figure(2)
-% contourf(lon,lat,lsm')
-% colorbar
-
-for x=1:nlon
-	for y=1:nlat
-        if (lsm(x,y)==1)
-            % for output variables
-            PMIN(x,y,:)=NaN;
-            VMAX(x,y,:)=NaN;
-            TO(x,y,:)=NaN;
-            LNB(x,y,:)=NaN;
-            IFL(x,y,:)=NaN;
-            % for input variables
-            sst(x,y,:)=NaN;
-            msl(x,y,:)=NaN;
-            T(x,y,:,:)=NaN;
-            q(x,y,:,:)=NaN;
         end
     end
 end
 
-%% Plot the VMAX_average
+%% Write the reference outputs (dims {lon,lat,month} -> xarray reads month,lat,lon)
 
-figure(1)
-contourf(lon,lat,nanmean(VMAX,3)')
-hold on
-    colorbar
-    
-%% save out the variables for use in pyPI
-
-% choose name to save out, delete if it already exists
-if isfile('../data/sample_data.nc')
-     % File exists.
-     delete '../data/sample_data.nc'
-     nc_savepath='../data/sample_data.nc';
+if isfile(out_file)
+    delete(out_file)
 end
 
-% Save the Data
+% coordinates (written so the file aligns with sample_data.nc on merge)
+nccreate(out_file, 'p',     'Dimensions', {'p', np_len(p)},       'Format', 'netcdf4_classic')
+ncwrite(out_file, 'p', p);   ncwriteatt(out_file, 'p', 'units', 'hPa');
+nccreate(out_file, 'lat',   'Dimensions', {'lat', nlat},          'Format', 'netcdf4_classic')
+ncwrite(out_file, 'lat', lat);   ncwriteatt(out_file, 'lat', 'units', 'degrees_north');
+nccreate(out_file, 'lon',   'Dimensions', {'lon', nlon},          'Format', 'netcdf4_classic')
+ncwrite(out_file, 'lon', lon);   ncwriteatt(out_file, 'lon', 'units', 'degrees_east');
+nccreate(out_file, 'month', 'Dimensions', {'month', nmon},        'Format', 'netcdf4_classic')
+ncwrite(out_file, 'month', month);
 
-% dimensions
-nccreate(nc_savepath,'p',...
-          'Dimensions',{'p',length(p)},...
-          'Format','netcdf4_classic')
-ncwriteatt(nc_savepath, 'p', 'standard_name', 'Atmospheric Pressure');
-ncwriteatt(nc_savepath, 'p', 'units', 'hPa');
-ncwrite(nc_savepath,'p',p)
+% helper to create+write a 3-D (lon,lat,month) output variable with attributes
+dims3 = {'lon', nlon, 'lat', nlat, 'month', nmon};
+write3(out_file, 'Vmax', VMAX, dims3, 'Maximum Potential Intensity (BE02 MATLAB)', 'm/s');
+write3(out_file, 'Pmin', PMIN, dims3, 'Minimum Central Pressure (BE02 MATLAB)', 'hPa');
+write3(out_file, 'To',   TO,   dims3, 'Outflow Temperature (BE02 MATLAB)', 'K');
+write3(out_file, 'LNB',  LNB,  dims3, 'Level of Neutral Buoyancy (BE02 MATLAB)', 'hPa');
+write3(out_file, 'PI_flag', IFL, dims3, 'BE02 MATLAB status flag', '');
 
-nccreate(nc_savepath,'lat',...
-          'Dimensions',{'lat',length(lat)},...
-          'Format','netcdf4_classic')
-ncwriteatt(nc_savepath, 'lat', 'standard_name', 'Latitude');
-ncwriteatt(nc_savepath, 'lat', 'units', 'degrees');
-ncwrite(nc_savepath,'lat',lat)
+ncdisp(out_file)
 
-nccreate(nc_savepath,'lon',...
-          'Dimensions',{'lon',length(lon)},...
-          'Format','netcdf4_classic')
-ncwriteatt(nc_savepath, 'lon', 'standard_name', 'Longitude');
-ncwriteatt(nc_savepath, 'lon', 'units', 'degrees');
-ncwrite(nc_savepath,'lon',lon)
+%% local helper functions
+function n = np_len(p)
+    n = length(p);
+end
 
-month=1:12;
-nccreate(nc_savepath,'month',...
-          'Dimensions',{'month',12},...
-          'Format','netcdf4_classic')
-ncwriteatt(nc_savepath, 'month', 'standard_name', 'Month');
-ncwriteatt(nc_savepath, 'month', 'units', 'Month Number');
-ncwrite(nc_savepath,'month',month)
-
-% inputs
-nccreate(nc_savepath,'lsm',...
-          'Dimensions',{'lon',length(lon),'lat',length(lat)},...
-          'Format','netcdf4_classic')
-ncwriteatt(nc_savepath, 'lsm', 'standard_name', 'ERA-I Land-sea Mask');
-ncwriteatt(nc_savepath, 'lsm', 'units', '0=Ocean, 1=Land');
-ncwrite(nc_savepath,'lsm',lsm)
-
-nccreate(nc_savepath,'sst',...
-          'Dimensions',{'lon',length(lon),'lat',length(lat),'month',12},...
-          'Format','netcdf4_classic')
-ncwriteatt(nc_savepath, 'sst', 'standard_name', 'Sea Surface Temperature');
-ncwriteatt(nc_savepath, 'sst', 'units', 'degrees C');
-ncwrite(nc_savepath,'sst',sst)
-
-nccreate(nc_savepath,'msl',...
-          'Dimensions',{'lon',length(lon),'lat',length(lat),'month',12},...
-          'Format','netcdf4_classic')
-ncwriteatt(nc_savepath, 'msl', 'standard_name', 'Mean Sea Level Pressure');
-ncwriteatt(nc_savepath, 'msl', 'units', 'hPa');
-ncwrite(nc_savepath,'msl',msl)
-
-nccreate(nc_savepath,'t',...
-          'Dimensions',{'lon',length(lon),'lat',length(lat),'p',length(p),'month',12},...
-          'Format','netcdf4_classic')
-ncwriteatt(nc_savepath, 't', 'standard_name', 'Atmospheric Temperature');
-ncwriteatt(nc_savepath, 't', 'units', 'degrees C');
-ncwrite(nc_savepath,'t',T)
-
-nccreate(nc_savepath,'q',...
-          'Dimensions',{'lon',length(lon),'lat',length(lat),'p',length(p),'month',12},...
-          'Format','netcdf4_classic')
-ncwriteatt(nc_savepath, 'q', 'standard_name', 'Specific Humidity');
-ncwriteatt(nc_savepath, 'q', 'units', 'g/kg');
-ncwrite(nc_savepath,'q',q)
-
-% outputs
-nccreate(nc_savepath,'Vmax',...
-          'Dimensions',{'lon',length(lon),'lat',length(lat),'month',12},...
-          'Format','netcdf4_classic')
-ncwriteatt(nc_savepath, 'Vmax', 'standard_name', 'Maximum Potential Intensity');
-ncwriteatt(nc_savepath, 'Vmax', 'units', 'm/s');
-ncwrite(nc_savepath,'Vmax',VMAX)
-
-nccreate(nc_savepath,'To',...
-          'Dimensions',{'lon',length(lon),'lat',length(lat),'month',12},...
-          'Format','netcdf4_classic')
-ncwriteatt(nc_savepath, 'To', 'standard_name', 'Outflow Temperature');
-ncwriteatt(nc_savepath, 'To', 'units', 'kelvin');
-ncwrite(nc_savepath,'To',TO)
-
-nccreate(nc_savepath,'Pmin',...
-          'Dimensions',{'lon',length(lon),'lat',length(lat),'month',12},...
-          'Format','netcdf4_classic')
-ncwriteatt(nc_savepath, 'Pmin', 'standard_name', 'Minimum Central Pressure');
-ncwriteatt(nc_savepath, 'Pmin', 'units', 'hPa');
-ncwrite(nc_savepath,'Pmin',PMIN)
-
-nccreate(nc_savepath,'LNB',...
-          'Dimensions',{'lon',length(lon),'lat',length(lat),'month',12},...
-          'Format','netcdf4_classic')
-ncwriteatt(nc_savepath, 'LNB', 'standard_name', 'Level of Neutral Bouyancy for a Parcel Reversibly Lifted from Sea Level');
-ncwriteatt(nc_savepath, 'LNB', 'units', 'hPa');
-ncwrite(nc_savepath,'LNB',LNB)
-
-nccreate(nc_savepath,'PI_flag',...
-          'Dimensions',{'lon',length(lon),'lat',length(lat),'month',12},...
-          'Format','netcdf4_classic')
-ncwriteatt(nc_savepath, 'PI_flag', 'standard_name', 'Flag for BE02 algorithm');
-ncwrite(nc_savepath,'PI_flag',IFL)
-
-% show the file that was written
-ncdisp(nc_savepath)
+function write3(file, name, data, dims, standard_name, units)
+    nccreate(file, name, 'Dimensions', dims, 'Format', 'netcdf4_classic')
+    ncwrite(file, name, data);
+    ncwriteatt(file, name, 'standard_name', standard_name);
+    if ~isempty(units)
+        ncwriteatt(file, name, 'units', units);
+    end
+end

@@ -1,5 +1,4 @@
-# This pyPI script computes PI and associated analyses over the entire sample dataset
-# which is from 2004, MERRA2.
+# This pyPI script computes PI and associated analyses over the sample dataset.
 #
 # Created by Daniel Gilford, PhD (daniel.gilford@rutgers.edu)
 # Many thanks to Daniel Rothenberg for his assitance optimizing pyPI
@@ -8,15 +7,24 @@
 #
 
 # setup
+import sys
+from pathlib import Path
+
 import xarray as xr
 
+# Prefer the local `src/` checkout when running from a repo clone.
+_REPO_ROOT = Path(__file__).resolve().parent
+_SRC_DIR = _REPO_ROOT / "src"
+if _SRC_DIR.is_dir():
+    sys.path.insert(0, str(_SRC_DIR))
+
 # load in pyPI modules
-from tcpyPI import pi, log_decompose_pi
+from tcpyPI import pi, pi_log_decomposition
 from tcpyPI.utilities import pi_efficiency, pi_diseq_resid
 
 # define the sample data locations
-datdir='./data/'
-_FN=datdir+'sample_data.nc'
+datdir = "./data/"
+_FN = datdir + "sample_data.nc"
     
 
 def run_sample_dataset(fn, dim='p',CKCD=0.9,outflow_source="cape_star"):
@@ -132,7 +140,7 @@ def run_sample_analyses(ds,CKCD=0.9):
     )
     
     result = xr.apply_ufunc(
-        log_decompose_pi,
+        pi_log_decomposition,
         ds['vmax'], ds['sst']+273.15, ds['t0'],
         kwargs=dict(CKCD=CKCD, sst_units="K"),
         input_core_dims=[
@@ -146,13 +154,20 @@ def run_sample_analyses(ds,CKCD=0.9):
 
     lnpi, lneff, lndiseq, lnCKCD = result
     
+    # `lnCKCD` is constant in space/time, but `pi_log_decomposition` broadcasts it to
+    # the input shape. Collapse it to a scalar so the output stays compact and
+    # robust to input dimensionality.
+    lnCKCD_scalar = lnCKCD
+    for dim in list(getattr(lnCKCD_scalar, "dims", ())):
+        lnCKCD_scalar = lnCKCD_scalar.isel({dim: 0})
+
     out_ds = xr.Dataset({
                 'eff': efficiency, 
                 'diseq': diseq,
                 'lnpi': lnpi,
                 'lneff': lneff,
                 'lndiseq': lndiseq,
-                'lnCKCD': lnCKCD[0,0,0]
+                'lnCKCD': lnCKCD_scalar
             })
     
     # add names and units (where applicable)
@@ -173,7 +188,7 @@ if __name__ == "__main__":
     # Execute PI analysis over the whole dataset and save the output
     print('Beginning PI computations...')
     ds = run_sample_dataset(_FN)
-    ds.to_netcdf(datdir+'raw_sample_output.nc')
+    ds.to_netcdf(datdir+'raw_sample_output.nc', engine="h5netcdf")
     print('...PI computation complete and saved\n')
     
     # Perform PI analyses over the whole dataset
@@ -182,7 +197,7 @@ if __name__ == "__main__":
     
     # merge the arrays and save the output
     ds3=ds.merge(ds2)
-    ds3.to_netcdf(datdir+'full_sample_output.nc')
+    ds3.to_netcdf(datdir+'full_sample_output.nc', engine="h5netcdf")
     del ds, ds2
     print('...PI analyses complete and saved')
     print('pyPI sample run finished!')
