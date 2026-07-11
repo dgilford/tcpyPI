@@ -112,6 +112,12 @@ numpy = "*"
 download-era5 = { cmd = "python download_era5.py && python download_era5_sl.py", cwd = "data" }
 build-sample = "python data/build_sample_data_era5_oct2024.py"
 
+# Benchmark-only environment: adds Skyborn (compiled-Fortran PI backend, issue #86)
+# for the optional three-way comparison in notebooks/clock_pypi.ipynb. Not used by
+# the package or CI.
+[tool.pixi.feature.bench.pypi-dependencies]
+skyborn = "*"
+
 [tool.pixi.target.osx-64.dependencies]
 # Workaround for duplicate LD_RPATH issue on MacOS 15.4
 # <https://github.com/prefix-dev/pixi/issues/3479>
@@ -128,6 +134,7 @@ libgfortran5 = ">=14"
 
 [tool.pixi.environments]
 default = {features = ["test", "xarray", "notebook", "data"], solve-group = "default"}
+bench = {features = ["test", "xarray", "notebook", "bench"], solve-group = "bench"}
 minimal = {features = [], solve-group = "default"}
 # CI test environments,
 test-latest = {features = ["test"], solve-group = "default"}

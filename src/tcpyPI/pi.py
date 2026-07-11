@@ -49,7 +49,7 @@ Revision History:
 
 # import required packages
 import numpy as np
-from .numba import njit
+from .numba import njit, guvectorize
 from . import constants
 from . import utilities
 
@@ -475,6 +475,18 @@ def _pi_numba(
     T=utilities.T_Ctok(TC)      # Temperature profile in kelvin
     R=R*0.001                   # Mixing ratio profile in g/g
 
+    # CHECK 0: is MSL missing? If so, set IFL=3 and return missing PI.
+    # (Mirrors the pi() wrapper guard with the same precedence; needed for the
+    # whole-field pi_field path, where per-cell MSL NaNs reach this compiled core
+    # directly. Untaken for valid MSL, so existing results are unchanged.)
+    if np.isnan(MSL):
+        VMAX=np.nan
+        PMIN=np.nan
+        IFL=3
+        TO=np.nan
+        OTL=np.nan
+        return(VMAX,PMIN,IFL,TO,OTL)
+
     # CHECK 1a: do SSTs exceed 5C?
     # CHECK 1b: are SSTs less than 100C (if not, indicative of input in kelvin)
     # If not, set IFL=0 and return missing PI
@@ -887,6 +899,174 @@ def pi(
         ptop=ptop,
         miss_handle=miss_handle,
         outflow_source_flag=outflow_source_flag,
+    )
+
+
+if guvectorize is not None:
+    # Whole-field generalized ufunc around the compiled per-column core. Processing
+    # the entire field inside compiled, multithreaded code removes the per-column
+    # Python-loop overhead of xarray.apply_ufunc(..., vectorize=True) (the speedup
+    # highlighted by GitHub issue #86). Same per-column math as pi(): results are
+    # bit-identical for identical (float64) inputs.
+    @guvectorize(
+        [
+            "void(float64, float64, float64[:], float64[:], float64[:], "
+            "float64, int64, int64, float64, float64, int64, int64, "
+            "float64[:], float64[:], int64[:], float64[:], float64[:])"
+        ],
+        "(),(),(n),(n),(n),(),(),(),(),(),(),()->(),(),(),(),()",
+        target="parallel",
+        cache=True,
+    )
+    def _pi_field_gufunc(
+        sstc, msl, p, tc, r,
+        ckcd, ascent_flag, diss_flag, v_reduc, ptop, miss_handle, outflow_source_flag,
+        vmax, pmin, ifl, to, otl,
+    ):
+        res = _pi_numba(
+            sstc, msl, p, tc, r,
+            ckcd, ascent_flag, diss_flag, v_reduc, ptop, miss_handle,
+            outflow_source_flag,
+        )
+        vmax[0] = res[0]
+        pmin[0] = res[1]
+        ifl[0] = res[2]
+        to[0] = res[3]
+        otl[0] = res[4]
+else:  # pragma: no cover - exercised only with TCPYPI_DISABLE_NUMBA=1
+    _pi_field_gufunc = None
+
+
+def pi_field(
+    SSTC,
+    MSL,
+    P,
+    TC,
+    R,
+    CKCD=0.9,
+    ascent_flag=0,
+    diss_flag=1,
+    V_reduc=0.8,
+    ptop=50,
+    miss_handle=1,
+    outflow_source="cape_star",
+):
+    r"""Calculate potential intensity over a whole gridded field at once.
+
+    A fast, compiled, multithreaded path over many columns: the entire field is
+    processed inside a Numba generalized ufunc (``target='parallel'``), removing
+    the per-column Python-loop overhead of ``xarray.apply_ufunc(pi, ...,
+    vectorize=True)``. The per-column math is identical to :func:`pi` (the same
+    compiled core), so for identical float64 inputs the results are bit-identical.
+    Motivated by the whole-field benchmark in GitHub issue #86 — implemented
+    natively so only tcpyPI code executes.
+
+    Parameters
+    ----------
+    SSTC : array-like
+        Sea surface temperatures (C); any shape (e.g. ``(month, lat, lon)``).
+        NaN cells (e.g. land) return missing with ``IFL=0``.
+    MSL : array-like
+        Mean sea level pressures (hPa), broadcastable against `SSTC`.
+        NaN cells return missing with ``IFL=3``.
+    P : array
+        1-D pressure levels (hPa), shared by all columns. Any vertical order is
+        accepted (sorted internally to decreasing pressure).
+    TC, R : array-like
+        Temperature (C) and mixing ratio (g/kg) profiles. The **level dimension
+        must be the last (trailing) axis**; leading axes broadcast against `SSTC`.
+        (With xarray, ``xr.apply_ufunc(pi_field, ..., input_core_dims=[[], [],
+        ['p'], ['p'], ['p']], ...)`` arranges this automatically — no
+        ``vectorize=True`` needed.)
+    CKCD, ascent_flag, diss_flag, V_reduc, ptop, miss_handle, outflow_source
+        As in :func:`pi`.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        ``(VMAX, PMIN, IFL, TO, OTL)`` with the broadcast field shape; `IFL` is an
+        integer array. See :func:`pi` for definitions, units, and flag meanings.
+
+    Notes
+    -----
+    Inputs are converted to float64 (use :func:`pi` directly if you need another
+    precision path). If Numba is disabled/unavailable, falls back to a per-column
+    loop over :func:`pi` (slow but correct).
+
+    Examples
+    --------
+        >>> field = pi_field(np.array([[30.0, np.nan]]), 1010.0,
+        ...                  np.array([1000., 900, 800, 700, 600, 500, 400, 300, 200, 100, 50]),
+        ...                  np.array([28., 22, 16, 11, 5, -2, -11, -27, -49, -79, -64]),
+        ...                  np.array([18., 12, 9, 4, 1.7, 1.7, 0.2, 0.1, 0.05, 0.003, 0.002]))
+        >>> field[2].tolist()  # IFL: ocean cell converges, NaN-SST cell is missing
+        [[1, 0]]
+    """
+    if outflow_source == "cape_star":
+        outflow_source_flag = 0
+    elif outflow_source == "cape_env":
+        outflow_source_flag = 1
+    else:
+        raise ValueError(
+            f"Invalid outflow_source={outflow_source!r}; expected 'cape_star' or 'cape_env'."
+        )
+
+    SSTC = np.asarray(SSTC, dtype=np.float64)
+    MSL = np.asarray(MSL, dtype=np.float64)
+    P = np.asarray(P, dtype=np.float64)
+    TC = np.asarray(TC, dtype=np.float64)
+    R = np.asarray(R, dtype=np.float64)
+
+    if P.ndim != 1:
+        raise ValueError(
+            "pi_field expects a single 1-D pressure-level array shared by all "
+            "columns; for per-column pressure grids call pi() per column."
+        )
+    if TC.shape[-1] != P.size or R.shape[-1] != P.size:
+        raise ValueError(
+            "The level dimension of TC and R must be the last axis and match P "
+            f"(got P: {P.size}, TC: {TC.shape[-1]}, R: {R.shape[-1]})."
+        )
+
+    field_shape = np.broadcast_shapes(SSTC.shape, MSL.shape, TC.shape[:-1], R.shape[:-1])
+
+    # Global guard (mirrors pi()): a NaN anywhere in the shared pressure array
+    # poisons every column, so return an all-missing field with IFL=3.
+    if np.any(np.isnan(P)):
+        nanfield = np.full(field_shape, np.nan)
+        return (nanfield, nanfield.copy(), np.full(field_shape, 3, dtype=np.int64),
+                nanfield.copy(), nanfield.copy())
+
+    # Order-agnostic: sort the shared profile to decreasing pressure once.
+    order = np.argsort(P)[::-1]
+    if not np.array_equal(order, np.arange(P.size)):
+        P = P[order]
+        TC = np.take(TC, order, axis=-1)
+        R = np.take(R, order, axis=-1)
+
+    if _pi_field_gufunc is None:
+        # Pure-Python fallback (TCPYPI_DISABLE_NUMBA=1 or Numba unavailable).
+        b_sst, b_msl = np.broadcast_arrays(np.broadcast_to(SSTC, field_shape),
+                                           np.broadcast_to(MSL, field_shape))
+        b_tc = np.broadcast_to(TC, field_shape + (P.size,))
+        b_r = np.broadcast_to(R, field_shape + (P.size,))
+        vmax = np.full(field_shape, np.nan)
+        pmin = np.full(field_shape, np.nan)
+        ifl = np.zeros(field_shape, dtype=np.int64)
+        to = np.full(field_shape, np.nan)
+        otl = np.full(field_shape, np.nan)
+        for idx in np.ndindex(field_shape):
+            out = pi(b_sst[idx], b_msl[idx], P, b_tc[idx], b_r[idx],
+                     CKCD=CKCD, ascent_flag=ascent_flag, diss_flag=diss_flag,
+                     V_reduc=V_reduc, ptop=ptop, miss_handle=miss_handle,
+                     outflow_source=outflow_source)
+            vmax[idx], pmin[idx], ifl[idx], to[idx], otl[idx] = out
+        return (vmax, pmin, ifl, to, otl)
+
+    return _pi_field_gufunc(
+        SSTC, MSL, P, TC, R,
+        float(CKCD), int(ascent_flag), int(diss_flag), float(V_reduc), float(ptop),
+        int(miss_handle), int(outflow_source_flag),
     )
 
 

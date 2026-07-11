@@ -46,8 +46,13 @@ def noop_njit(*args, **kwargs):
 
 if os.getenv("TCPYPI_DISABLE_NUMBA") == "1":
     njit = noop_njit
+    # No pure-Python generalized-ufunc equivalent; consumers (pi_field) fall back
+    # to a per-column loop when this is None.
+    guvectorize = None
 else:
     import numba as nb
+
+    guvectorize = nb.guvectorize
 
     def njit(*args, **kwargs):
         """``numba.njit`` with on-disk caching enabled by default.

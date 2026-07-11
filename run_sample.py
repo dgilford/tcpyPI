@@ -19,7 +19,7 @@ if _SRC_DIR.is_dir():
     sys.path.insert(0, str(_SRC_DIR))
 
 # load in pyPI modules
-from tcpyPI import pi, pi_log_decomposition
+from tcpyPI import pi_field, pi_log_decomposition
 from tcpyPI.utilities import pi_efficiency, pi_diseq_resid
 
 # define the sample data locations
@@ -50,9 +50,11 @@ def run_sample_dataset(fn, dim='p',CKCD=0.9,outflow_source="cape_star"):
     
     # open the sample data file
     ds = xr.open_dataset(fn)
-    # calculate PI over the whole data set using the xarray universal function
+    # calculate PI over the whole dataset in one whole-field call: pi_field is a
+    # compiled, multithreaded generalized ufunc (same per-column math as pi()),
+    # so no `vectorize=True` per-column Python loop is needed.
     result = xr.apply_ufunc(
-        pi,
+        pi_field,
         ds['sst'], ds['msl'], ds[dim], ds['t'], ds['r'],
         kwargs=dict(
             CKCD=CKCD,
@@ -68,7 +70,6 @@ def run_sample_dataset(fn, dim='p',CKCD=0.9,outflow_source="cape_star"):
         output_core_dims=[
             [], [], [], [], []
         ],
-        vectorize=True
     )
 
     # store the result in an xarray data structure
