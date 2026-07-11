@@ -58,3 +58,18 @@ jobs:
     - name: Run xarray tests
       run: |
         pixi run -e test-xarray-${{ matrix.dependencies }} xarray-tests
+
+  mcp:
+    name: mcp server tests
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Needed for git history (tags)
+
+    - uses: prefix-dev/setup-pixi@v0.9.1
+      with:
+        environments: test-mcp
+
+    - name: Run MCP server tests
+      run: pixi run -e test-mcp mcp-tests

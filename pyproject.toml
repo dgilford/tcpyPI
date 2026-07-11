@@ -31,6 +31,12 @@ dependencies = [
 [project.optional-dependencies]
 xarray = ["xarray", "h5netcdf"]
 demo = ["xarray", "h5netcdf", "matplotlib", "pooch"]
+# MCP server (tcpypi-mcp): pin the FastMCP major — FastMCP 3.x tracks MCP spec
+# revisions (incl. 2026-07-28) so the server code doesn't chase the spec itself.
+mcp = ["fastmcp>=3,<4", "xarray", "h5netcdf"]
+
+[project.scripts]
+tcpypi-mcp = "tcpyPI.mcp_server:main"
 
 [project.urls]
 Homepage = "https://github.com/dgilford/tcpyPI"
@@ -178,6 +184,11 @@ build-sample = "python data/build_sample_data_era5_oct2024.py"
 [tool.pixi.feature.bench.pypi-dependencies]
 skyborn = "*"
 
+# MCP server test environment. fastmcp itself comes from the `mcp` optional-
+# dependency group, which pixi auto-maps into a feature of the same name.
+[tool.pixi.feature.mcp.tasks]
+mcp-tests = "python -m pytest -n auto tests/test_mcp_server.py tests/test_xarray_api.py"
+
 [tool.pixi.feature.lint.dependencies]
 ruff = "*"
 mypy = "*"
@@ -213,3 +224,4 @@ test-latest = {features = ["test"], solve-group = "default"}
 test-xarray-latest = {features = ["test", "xarray"], solve-group = "default"}
 test-min = {features = ["test", "min-dependency-versions"], solve-group = "min"}
 test-xarray-min = {features = ["test", "xarray", "min-dependency-versions"], solve-group = "min"}
+test-mcp = {features = ["test", "xarray", "mcp"], solve-group = "mcp"}

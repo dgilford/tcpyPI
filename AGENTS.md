@@ -8,6 +8,7 @@ Core library in `src/tcpyPI/`:
 - `utilities.py` — thermodynamic helpers, unit/longitude conversions, PI efficiency/disequilibrium (`decompose_pi` scalar core).
 - `constants.py` — meteorological constants (fully documented, incl. the deliberate modified `CL=2500`); `numba.py` — the `@njit`/`guvectorize` wrapper (graceful pure-Python fallback when Numba is absent).
 - `vi.py` — TE12 ventilation index + entropy-deficit (`chi_m`) + `vi_log_decomposition`. `gpi.py` — genesis potential index (`en04`, `e10`) + `gpi_log_decomposition`. `pdi.py` — power dissipation index. `relative_intensity.py` — ν = V/V_PI. (PDI is experimental.)
+- `xarray.py` — whole-field Dataset entry point `pi_dataset(ds, dim, **knobs)` (wraps `pi_field`; requires the `[xarray]` extra; guarded import so the module loads without it). `mcp_server.py` — MCP server (`tcpypi-mcp` console script, `[mcp]` extra): five tools (`compute_pi`, `compute_pi_grid`, `decompose_pi`, `ventilation_index`, `genesis_potential_index`), all thin wrappers — I/O + validation only, no science in the server. Units are never converted silently (grid inputs must carry matching netCDF `units` attrs); every result carries provenance and the `ifl == 1` trustworthy-output gate; missing values cross the protocol as JSON null.
 
 Sample workflow in `run_sample.py` (writes `data/raw_sample_output.nc`, `data/full_sample_output.nc`). Tests in `tests/`. Notebooks in `notebooks/`; figures in `figures/`; legacy BE02 MATLAB in `matlab_scripts/`.
 
@@ -17,6 +18,7 @@ Sample workflow in `run_sample.py` (writes `data/raw_sample_output.nc`, `data/fu
   - `pixi run -e test-latest basic-tests` — core suite + doctests.
   - `pixi run -e test-xarray-latest xarray-tests` — sample-output regression (rtol=1e-13 pins).
   - `pixi run -e test-min basic-tests` — minimum supported floor (py3.11 / numpy 1.26 / numba 0.59).
+  - `pixi run -e test-mcp mcp-tests` — MCP server + xarray-API tests (fastmcp comes from the `mcp` optional-dependency group, auto-mapped by pixi).
 - Lint/format/type-check (enforced by the CI `lint` job on every push/PR):
   - `pixi run -e lint lint` (ruff check) · `pixi run -e lint format-check` / `format` (ruff format) · `pixi run -e lint typecheck` (mypy).
   - Contributors can also `pip install pre-commit && pre-commit install` (ruff + ruff-format hooks).
