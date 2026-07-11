@@ -31,9 +31,7 @@ def noop_njit(*args, **kwargs):
                 result = float(result)
             elif isinstance(result, tuple):
                 # Cast components to float
-                result = tuple(
-                    float(x) if isinstance(x, np.floating) else x for x in result
-                )
+                result = tuple(float(x) if isinstance(x, np.floating) else x for x in result)
             return result
 
         return wrapper
@@ -45,9 +43,33 @@ def noop_njit(*args, **kwargs):
 
 
 if os.getenv("TCPYPI_DISABLE_NUMBA") == "1":
-    njit = noop_njit
+    _numba_available = False
 else:
-    import numba as nb
+    try:
+        import numba as nb
+
+        _numba_available = True
+    except ImportError:
+        # Graceful degradation: tcpyPI remains importable and correct without
+        # Numba, just slow (roadmap issue #75, "make numba a lazy dependency").
+        import warnings
+
+        warnings.warn(
+            "Numba is not installed; tcpyPI will run in pure-Python mode "
+            "(orders of magnitude slower). Install it with `pip install numba` "
+            "to enable the compiled kernels.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        _numba_available = False
+
+if not _numba_available:
+    njit = noop_njit
+    # No pure-Python generalized-ufunc equivalent; consumers (pi_field) fall back
+    # to a per-column loop when this is None.
+    guvectorize = None
+else:
+    guvectorize = nb.guvectorize
 
     def njit(*args, **kwargs):
         """``numba.njit`` with on-disk caching enabled by default.

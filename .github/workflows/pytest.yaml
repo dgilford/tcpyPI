@@ -1,13 +1,36 @@
 name: Run tests
 
+# Triggers cover both `master` and `main` so CI keeps working through the
+# default-branch rename (master -> main); drop `master` after the rename.
 on:
   push:
     branches:
-      - master
       - main
+      - master
   pull_request:
 
 jobs:
+  lint:
+    name: lint (ruff + mypy)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - uses: prefix-dev/setup-pixi@v0.9.1
+      with:
+        environments: lint
+
+    - name: ruff check
+      run: pixi run -e lint lint
+
+    - name: ruff format --check
+      run: pixi run -e lint format-check
+
+    - name: mypy
+      run: pixi run -e lint typecheck
+
   test:
     name: ${{ matrix.os }}-${{ matrix.dependencies }}
     runs-on: ${{ matrix.os }}

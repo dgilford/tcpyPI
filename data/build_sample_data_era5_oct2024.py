@@ -13,7 +13,7 @@ Inputs (expected in `data/`, produced by the download scripts):
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -22,7 +22,9 @@ import xarray as xr
 from tcpyPI.utilities import convert_lon_to360
 
 
-def _subset_latlon(ds: xr.Dataset, lat_min: float, lat_max: float, lon_min: float, lon_max: float) -> xr.Dataset:
+def _subset_latlon(
+    ds: xr.Dataset, lat_min: float, lat_max: float, lon_min: float, lon_max: float
+) -> xr.Dataset:
     lat = ds["lat"]
     lon = ds["lon"]
 
@@ -55,9 +57,10 @@ def build_sample_data(
     Handles any number of monthly-mean time steps: the ``valid_time`` axis is mapped
     to an integer ``month`` coordinate (1-12), so a 12-month 2024 download yields a
     full seasonal cycle and a single-month download yields a one-element ``month``
-    axis. Includes the wind/humidity/vorticity fields (``u, v, r, vo``) needed for the
-    seasonal GPI/ventilation-index analyses alongside the core PI inputs
-    (``sst, msl, t, q``).
+    axis. Includes the wind/humidity/vorticity fields (``u, v, rh, vo``) needed for
+    the seasonal GPI/ventilation-index analyses alongside the core PI inputs
+    (``sst, msl, t, r`` — with ``r`` the true water-vapor mixing ratio converted
+    from ERA5 specific humidity via ``r = q/(1-q)``; see GitHub issue #60).
 
     Spatial resolution is reduced by strided subsampling (decimation, no
     interpolation) with ``subsample_factor`` (8 -> ~2 deg from ERA5's 0.25 deg); the
@@ -91,7 +94,10 @@ def build_sample_data(
     # gridpoint values (no interpolation/averaging). Use xESMF if conservative
     # regridding is ever needed instead.
     if subsample_factor > 1:
-        sub = {"lat": slice(None, None, subsample_factor), "lon": slice(None, None, subsample_factor)}
+        sub = {
+            "lat": slice(None, None, subsample_factor),
+            "lon": slice(None, None, subsample_factor),
+        }
         pl = pl.isel(sub)
         sl = sl.isel(sub)
 
@@ -112,44 +118,49 @@ def build_sample_data(
             "sst": sst_c,
             "msl": sl["msl"] / 100.0,
             "t": pl["t"] - 273.15,
-            "q": pl["q"] * 1000.0,
+            # True water-vapor mixing ratio from ERA5 specific humidity:
+            # r = q/(1-q), converted to g/kg (matches pi()'s documented R input;
+            # see GitHub issue #60).
+            "r": (pl["q"] / (1.0 - pl["q"])) * 1000.0,
             "u": pl["u"],
             "v": pl["v"],
-            "r": pl["r"],
+            "rh": pl["r"],
             "vo": pl["vo"],
         },
         attrs={
             "title": "pyPI sample dataset (ERA5 monthly means, 2024)",
             "source": f"{pl_path.name} + {sl_path.name}",
-            "history": f"{datetime.now(timezone.utc).isoformat()}: created by data/build_sample_data_era5_oct2024.py",
+            "history": f"{datetime.now(UTC).isoformat()}: created by data/build_sample_data_era5_oct2024.py",
             "notes": (
-                "Core PI inputs in pyPI units: SST/T in C, MSL in hPa, q in g/kg "
-                "(specific humidity used directly as the mixing-ratio input, following "
-                "the original pyPI sample convention). u/v [m/s], r [%], vo [s^-1] are "
-                "included for the seasonal GPI/ventilation-index analyses. Native ERA5 "
-                "0.25deg subsampled (decimated) to ~2deg; SST masked to ocean "
+                "Core PI inputs in pyPI units: SST/T in C, MSL in hPa, r in g/kg "
+                "(true water-vapor mixing ratio, r = q/(1-q) from ERA5 specific "
+                "humidity). u/v [m/s], rh [%], vo [s^-1] are included for the "
+                "seasonal GPI/ventilation-index analyses. Native ERA5 0.25deg "
+                "subsampled (decimated) to ~2deg; SST masked to ocean "
                 "(land fraction < 0.5)."
             ),
         },
     )
 
-    out["month"].attrs.update({"standard_name": "Month", "units": "month number (1-12)"})
+    out["month"].attrs.update({"long_name": "calendar month of 2024 (1-12)", "units": "1"})
     out["p"].attrs.update({"standard_name": "Atmospheric Pressure", "units": "hPa"})
     out["lat"].attrs.update({"standard_name": "Latitude", "units": "degrees_north"})
     out["lon"].attrs.update({"standard_name": "Longitude", "units": "degrees_east"})
 
-    out["lsm"].attrs.update({
-        "standard_name": "land_area_fraction",
-        "long_name": "Land fraction (native ERA5 land-sea mask at the subsampled points)",
-        "units": "1",
-    })
+    out["lsm"].attrs.update(
+        {
+            "standard_name": "land_area_fraction",
+            "long_name": "Land fraction (native ERA5 land-sea mask at the subsampled points)",
+            "units": "1",
+        }
+    )
     out["sst"].attrs.update({"standard_name": "Sea Surface Temperature", "units": "degrees C"})
     out["msl"].attrs.update({"standard_name": "Mean Sea Level Pressure", "units": "hPa"})
     out["t"].attrs.update({"standard_name": "Atmospheric Temperature", "units": "degrees C"})
-    out["q"].attrs.update({"standard_name": "Specific Humidity", "units": "g/kg"})
+    out["r"].attrs.update({"standard_name": "Water Vapor Mixing Ratio", "units": "g/kg"})
     out["u"].attrs.update({"standard_name": "Eastward Wind", "units": "m/s"})
     out["v"].attrs.update({"standard_name": "Northward Wind", "units": "m/s"})
-    out["r"].attrs.update({"standard_name": "Relative Humidity", "units": "%"})
+    out["rh"].attrs.update({"standard_name": "Relative Humidity", "units": "%"})
     out["vo"].attrs.update({"standard_name": "Relative Vorticity", "units": "s-1"})
 
     encoding = {var: {"zlib": True, "complevel": 4} for var in out.data_vars}
@@ -190,16 +201,18 @@ def build_era5_demo_subset(
     # single-month October file.
     pl_full = xr.open_dataset(pl_path)[["t", "q", "u", "v", "r", "vo"]]
     # Normalize longitude to 0-360 (a regional `area` download returns -180..180).
-    pl_full = pl_full.assign_coords(longitude=convert_lon_to360(pl_full["longitude"])).sortby("longitude")
+    pl_full = pl_full.assign_coords(longitude=convert_lon_to360(pl_full["longitude"])).sortby(
+        "longitude"
+    )
     oct_idx = int(np.argmax(pl_full["valid_time"].dt.month.values == 10))
     pl = pl_full.isel(valid_time=oct_idx, drop=True)
     pl = pl.drop_vars(["number", "expver"], errors="ignore")
-    pl = pl.sortby("pressure_level", ascending=False).sel(
-        pressure_level=slice(p_max, p_min)
-    )
+    pl = pl.sortby("pressure_level", ascending=False).sel(pressure_level=slice(p_max, p_min))
 
     sl_full = xr.open_dataset(sl_path)[["sst", "msl"]]
-    sl_full = sl_full.assign_coords(longitude=convert_lon_to360(sl_full["longitude"])).sortby("longitude")
+    sl_full = sl_full.assign_coords(longitude=convert_lon_to360(sl_full["longitude"])).sortby(
+        "longitude"
+    )
     sl_oct = int(np.argmax(sl_full["valid_time"].dt.month.values == 10))
     sl = sl_full.isel(valid_time=sl_oct, drop=True)
     sl = sl.drop_vars(["number", "expver"], errors="ignore")
@@ -218,8 +231,7 @@ def build_era5_demo_subset(
             "milton_lon_convention": "degrees_east (0-360)",
             "milton_time": milton_time,
             "units_note": (
-                "Native ERA5 units: t[K], q[kg/kg], u/v[m/s], r[%], vo[s^-1], "
-                "sst[K], msl[Pa]."
+                "Native ERA5 units: t[K], q[kg/kg], u/v[m/s], r[%], vo[s^-1], sst[K], msl[Pa]."
             ),
             "caveat": (
                 "This is an October-2024 MONTHLY-MEAN (climatological) column - a valid "
@@ -248,8 +260,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Build the pyPI 2024 sample and demo subset from ERA5 monthly means."
     )
-    parser.add_argument("--pl", default="data/era5_pl_monthlymeans_2024.nc", help="Pressure-level ERA5 NetCDF")
-    parser.add_argument("--sl", default="data/era5_sl_monthlymeans_2024.nc", help="Single-level ERA5 NetCDF")
+    parser.add_argument(
+        "--pl", default="data/era5_pl_monthlymeans_2024.nc", help="Pressure-level ERA5 NetCDF"
+    )
+    parser.add_argument(
+        "--sl", default="data/era5_sl_monthlymeans_2024.nc", help="Single-level ERA5 NetCDF"
+    )
     parser.add_argument("--out", default="data/sample_data.nc", help="Output NetCDF path")
     parser.add_argument(
         "--demo-out",
@@ -260,8 +276,18 @@ def main() -> None:
     parser.add_argument("--lat-max", type=float, default=50.0)
     parser.add_argument("--lon-min", type=float, default=250.0)
     parser.add_argument("--lon-max", type=float, default=320.0)
-    parser.add_argument("--subsample", type=int, default=8, help="Strided decimation factor for lat/lon (8 -> ~2 deg from 0.25; 1 = full native)")
-    parser.add_argument("--land-frac-max", type=float, default=0.5, help="Mask SST where land fraction >= this (ocean-only PI)")
+    parser.add_argument(
+        "--subsample",
+        type=int,
+        default=8,
+        help="Strided decimation factor for lat/lon (8 -> ~2 deg from 0.25; 1 = full native)",
+    )
+    parser.add_argument(
+        "--land-frac-max",
+        type=float,
+        default=0.5,
+        help="Mask SST where land fraction >= this (ocean-only PI)",
+    )
     parser.add_argument("--p-min", type=float, default=50.0)
     parser.add_argument("--p-max", type=float, default=1000.0)
     args = parser.parse_args()
@@ -294,4 +320,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

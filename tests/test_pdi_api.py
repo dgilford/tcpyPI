@@ -23,9 +23,7 @@ def test_pdi_knots_hours_matches_ms_seconds():
     vmax_kt = np.array([20.0, 30.0, 40.0])
     dt_h = 1.0
 
-    out_kt_h = tcpyPI.power_dissipation_index(
-        vmax_kt, dt_h, wind_units="kt", dt_units="h"
-    )
+    out_kt_h = tcpyPI.power_dissipation_index(vmax_kt, dt_h, wind_units="kt", dt_units="h")
 
     vmax_ms = vmax_kt * 0.5144444444444445
     out_ms_s = tcpyPI.power_dissipation_index(

@@ -29,13 +29,12 @@ saturation entropy at the sea surface temperature, and ``sb`` is boundary-layer
 entropy.
 """
 
-from typing import Any, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
+from . import constants, utilities
 from .numba import njit
-from . import utilities
-from . import constants
 
 
 @njit()
@@ -110,7 +109,7 @@ def entropy_deficit_te12(
     out = np.empty_like(s_m_star_arr, dtype=float)
     it = np.nditer(
         [s_m_star_arr, s_m_arr, s_sst_star_arr, s_b_arr, out],
-        op_flags=[["readonly"]] * 4 + [["writeonly"]],
+        op_flags=[["readonly"]] * 4 + [["writeonly"]],  # type: ignore[arg-type]  # per-operand flag lists are valid at runtime
     )
     for sm_star, sm, sst_star, sb, o in it:
         o[...] = _chi_m_te12_numba(float(sm_star), float(sm), float(sst_star), float(sb))
@@ -393,13 +392,13 @@ def entropy_deficit_te12_from_profile(
     *,
     T_units: str = "K",
     q_units: str = "g/kg",
-    SST: Optional[Any] = None,
+    SST: Any | None = None,
     SST_units: str = "K",
-    psfc_hpa: Optional[Any] = None,
-    T2m: Optional[Any] = None,
-    q2m: Optional[Any] = None,
+    psfc_hpa: Any | None = None,
+    T2m: Any | None = None,
+    q2m: Any | None = None,
     sb_source: str = "t2m",
-    sb_fallback: Tuple[str, ...] = ("layer_1000_900", "lowest_level"),
+    sb_fallback: tuple[str, ...] = ("layer_1000_900", "lowest_level"),
     p_mid_hpa: float = 600.0,
     s_m_star_source: str = "env_T_at_pmid",
     entropy_method: str = "emanuel94",
@@ -543,9 +542,7 @@ def entropy_deficit_te12_from_profile(
     elif entropy_method == "bryan2008":
         entropy_method_flag = 1
     else:
-        raise ValueError(
-            "Invalid entropy_method; expected 'emanuel94' or 'bryan2008'."
-        )
+        raise ValueError("Invalid entropy_method; expected 'emanuel94' or 'bryan2008'.")
 
     return float(
         _chi_m_te12_from_profile_numba(
@@ -607,9 +604,7 @@ def ventilation_index(
     if formulation == "te12":
         formulation_flag = 0
     else:
-        raise ValueError(
-            f"Invalid formulation={formulation!r}; expected one of: 'te12'."
-        )
+        raise ValueError(f"Invalid formulation={formulation!r}; expected one of: 'te12'.")
 
     if chi_m is None:
         missing = [
@@ -640,7 +635,7 @@ def ventilation_index(
     out = np.empty_like(v_shear_arr, dtype=float)
     it = np.nditer(
         [v_shear_arr, v_pot_arr, chi_arr, out],
-        op_flags=[["readonly"]] * 3 + [["writeonly"]],
+        op_flags=[["readonly"]] * 3 + [["writeonly"]],  # type: ignore[arg-type]  # per-operand flag lists are valid at runtime
     )
     for vs, vp, ch, o in it:
         o[...] = _vi_numba(float(vs), float(vp), float(ch), formulation_flag=formulation_flag)

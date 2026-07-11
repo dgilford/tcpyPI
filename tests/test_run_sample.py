@@ -44,6 +44,4 @@ def test_run_sample_analyses():
     # Only compare the analysis variables (not the input variables)
     analysis_vars = ["eff", "diseq", "lnpi", "lneff", "lndiseq", "lnCKCD"]
     for var in analysis_vars:
-        xr.testing.assert_allclose(
-            ds_out[var], expected_ds[var], rtol=1e-13, atol=1e-9
-        )
+        xr.testing.assert_allclose(ds_out[var], expected_ds[var], rtol=1e-13, atol=1e-9)

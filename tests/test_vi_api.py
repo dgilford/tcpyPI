@@ -152,7 +152,6 @@ def test_chi_m_te12_from_profile_moist_adiabat_from_sst_runs():
     assert np.isfinite(out)
 
 
-
 def test_vi_log_decomposition_closure_and_handcalc():
     us, vp, ch = 12.0, 75.0, 0.5
     d = tcpyPI.vi_log_decomposition(us, vp, ch)

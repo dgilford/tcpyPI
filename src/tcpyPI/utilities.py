@@ -8,6 +8,7 @@ from .numba import njit
 
 # ---------------------- Longitude conversion ---------------------- %
 
+
 def convert_lon_to180(lon360):
     """Convert longitudes from 0-360E to 180W-180E.
 
@@ -33,7 +34,8 @@ def convert_lon_to180(lon360):
         0
     """
     lon180 = -((-lon360 + 180) % 360 - 180)
-    return(lon180)
+    return lon180
+
 
 def convert_lon_to360(lon180):
     """Convert longitudes from 180W-180E to 0-360E.
@@ -62,9 +64,11 @@ def convert_lon_to360(lon180):
         180
     """
     lon360 = lon180 % 360
-    return(lon360)
+    return lon360
+
 
 # ---------------------- Unit Conversions ---------------------- %
+
 
 @njit()
 def T_ktoC(Tk):
@@ -87,7 +91,8 @@ def T_ktoC(Tk):
         >>> T_ktoC(283.15)
         10.0
     """
-    return (Tk-273.15)
+    return Tk - 273.15
+
 
 @njit()
 def T_Ctok(TC):
@@ -110,9 +115,11 @@ def T_Ctok(TC):
         >>> T_Ctok(10)
         283.15
     """
-    return (TC+273.15)
+    return TC + 273.15
+
 
 # ---------------------- Thermodynamic Calculations ---------------------- %
+
 
 @njit()
 def es_cc(TC):
@@ -135,11 +142,19 @@ def es_cc(TC):
         >>> es_cc(0)
         6.112...
     """
-    return 6.112*np.exp(17.67*TC/(243.5+TC))
+    return 6.112 * np.exp(17.67 * TC / (243.5 + TC))
+
 
 @njit()
 def Lv(TC):
     """Calculate latent heat of vaporization as a function of temperature.
+
+    NOTE: this is Emanuel's pseudoadiabat-tuned latent heat, not the standard
+    Kirchhoff relation. Its temperature slope is ``CPVMCL = CPV - CL`` with the
+    modified ``CL = 2500`` J/kg/K from :mod:`tcpyPI.constants` (physical CL would
+    give a ~2320 J/kg/K slope), so ``Lv(30)`` is ~2% above the physical value.
+    This is deliberate and internally consistent with the BE02/pcmin entropy
+    formulation; do not use this function as a general-purpose latent heat.
 
     Parameters
     ----------
@@ -158,10 +173,11 @@ def Lv(TC):
         >>> Lv(20)
         2488400.0
     """
-    return constants.ALV0+constants.CPVMCL*TC
+    return constants.ALV0 + constants.CPVMCL * TC
+
 
 @njit()
-def ev(R,P):
+def ev(R, P):
     """Calculate parcel vapor pressure.
 
     Parameters
@@ -183,10 +199,11 @@ def ev(R,P):
         >>> ev(0.02, 1000)
         31.154...
     """
-    return R*P/(constants.EPS+R)
+    return R * P / (constants.EPS + R)
+
 
 @njit()
-def rv(E,P):
+def rv(E, P):
     """Calculate parcel mixing ratio.
 
     Parameters
@@ -208,10 +225,11 @@ def rv(E,P):
         >>> rv(31.250, 1000)
         0.020063...
     """
-    return constants.EPS*E/(P-E)
+    return constants.EPS * E / (P - E)
+
 
 @njit()
-def entropy_S(T,R,P):
+def entropy_S(T, R, P):
     """Calculate total specific entropy per unit mass of dry air (E94, EQN. 4.5.9).
 
     Parameters
@@ -235,15 +253,21 @@ def entropy_S(T,R,P):
         >>> entropy_S(290, 0.005, 900)
         3868.01...
     """
-    EV=ev(R,P)
-    ES=es_cc(T-273.15)
-    RH=min([EV/ES,1.0])
-    ALV=Lv(T-273.15)
-    S=(constants.CPD+R*constants.CL)*np.log(T)-constants.RD*np.log(P-EV)+ALV*R/T-R*constants.RV*np.log(RH)
-    return(S)
+    EV = ev(R, P)
+    ES = es_cc(T - 273.15)
+    RH = min(EV / ES, 1.0)
+    ALV = Lv(T - 273.15)
+    S = (
+        (constants.CPD + R * constants.CL) * np.log(T)
+        - constants.RD * np.log(P - EV)
+        + ALV * R / T
+        - R * constants.RV * np.log(RH)
+    )
+    return S
+
 
 @njit()
-def Trho(T,RT,R):
+def Trho(T, RT, R):
     """Calculate density temperature in K.
 
     Parameters
@@ -267,10 +291,11 @@ def Trho(T,RT,R):
         >>> Trho(290, 0.01, 0.005)
         289.43...
     """
-    return T*(1.+R/constants.EPS)/(1.+RT)
+    return T * (1.0 + R / constants.EPS) / (1.0 + RT)
+
 
 @njit()
-def e_pLCL(TP,RH,PP):
+def e_pLCL(TP, RH, PP):
     """Calculate empirical lifting condensation level pressure (pLCL).
 
     Parameters
@@ -294,12 +319,14 @@ def e_pLCL(TP,RH,PP):
         >>> e_pLCL(290, 0.7, 900)
         830.83...
     """
-    return PP*(RH**(TP/(constants.A-constants.B*RH-TP)))
+    return PP * (RH ** (TP / (constants.A - constants.B * RH - TP)))
+
 
 # ---------------------- Analyses ---------------------- %
 
+
 @njit()
-def pi_efficiency(sstk,t0):
+def pi_efficiency(sstk, t0):
     """Calculate TC efficiency.
 
     Parameters
@@ -321,11 +348,12 @@ def pi_efficiency(sstk,t0):
         >>> pi_efficiency(295, 210)
         0.404...
     """
-    efficiency=(sstk-t0)/t0
-    return(efficiency)
+    efficiency = (sstk - t0) / t0
+    return efficiency
+
 
 @njit()
-def pi_diseq_resid(pi,sstk,t0,CKCD=0.9):
+def pi_diseq_resid(pi, sstk, t0, CKCD=0.9):
     """Calculate TC air-sea thermodynamic disequilibrium as a residual from Bister and Emanuel (1998; BE98) EQN. 21.
 
     Parameters
@@ -351,12 +379,13 @@ def pi_diseq_resid(pi,sstk,t0,CKCD=0.9):
         >>> pi_diseq_resid(50, 295, 210, 0.9)
         6862.74...
     """
-    efficiency=(sstk-t0)/t0
-    diseq=pi**2/(CKCD*efficiency)
-    return(diseq)
+    efficiency = (sstk - t0) / t0
+    diseq = pi**2 / (CKCD * efficiency)
+    return diseq
+
 
 @njit()
-def decompose_pi(pi,sstk,t0,CKCD=0.9):
+def decompose_pi(pi, sstk, t0, CKCD=0.9):
     """Perform decomposition of TC PI terms from Wing et al. (2015), EQN. 2.
 
     Parameters
@@ -394,21 +423,19 @@ def decompose_pi(pi,sstk,t0,CKCD=0.9):
             (nan, -0.693..., nan, -0.105...)
     """
     # the natural log of Ck/CD is a constant
-    lnCKCD=np.log(CKCD)
+    lnCKCD = np.log(CKCD)
     # calculate efficiency with SST (K) and Outflow temperature (K)
-    efficiency=(sstk-t0)/t0
+    efficiency = (sstk - t0) / t0
     # Is efficiency greater than 0? If not, return missing
-    if (efficiency>0):
-        # calculate disequilibrium with the BE98 equality
-        diseq=pi**2/(CKCD*efficiency)
-        lneff=np.log(efficiency)
+    if efficiency > 0:
+        lneff = np.log(efficiency)
         # Is potential intensity greater than 0? If not, return missing
-        if pi>0:
-            lnpi=2*np.log(pi)
+        if pi > 0:
+            lnpi = 2 * np.log(pi)
             # the log of disequilibrium is calculated as a residual
-            lndiseq=lnpi-lneff-lnCKCD
-            return(lnpi,lneff,lndiseq,lnCKCD)
+            lndiseq = lnpi - lneff - lnCKCD
+            return (lnpi, lneff, lndiseq, lnCKCD)
         else:
-            return(np.nan,lneff,np.nan,lnCKCD)
+            return (np.nan, lneff, np.nan, lnCKCD)
     else:
-        return(np.nan,np.nan,np.nan,lnCKCD)
+        return (np.nan, np.nan, np.nan, lnCKCD)

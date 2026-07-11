@@ -21,7 +21,7 @@ Revision History:
   Revised 8/4/16 by D. Gilford to include lack of convergence if SST < 5C for TO/LNB
   Revised 8/5/16 by D. Gilford to fix the "cape()" function output and include LNB
   Revised 10/3/16 by D. Gilford to set LNB to the pressure-weighted crossing of buoyancy from negative to positive (the zero-line)
-  Revised 1/7/2017 by Luke Davis to fix and improper definition of JMIN, which should be the lowest profile level at or above the parcel level in the calculation of CAPE. Kerry is grateful to Luke and to Tim Merlis for pointing out this error. In practice, the error was usually less than 1 hPa in central pressure.    
+  Revised 1/7/2017 by Luke Davis to fix and improper definition of JMIN, which should be the lowest profile level at or above the parcel level in the calculation of CAPE. Kerry is grateful to Luke and to Tim Merlis for pointing out this error. In practice, the error was usually less than 1 hPa in central pressure.
     --Converted to Python  04/2020
   Revised 4/10/2020 by D. Rothenberg (daniel@danielrothenberg.com) for Numba optimization
   Revised 4/13/2020 by D. Gilford to add new handling of missing profile data
@@ -42,23 +42,26 @@ Revision History:
     - `cape()` now retains all levels with pressure > ptop (previously the level nearest ptop could be dropped when no level fell exactly at ptop).
     - Under miss_handle=0, the parcel is now lifted from the lowest valid level (previously a NaN in the lowest level(s) produced a NaN parcel and unconverged output).
     - Moved the PI log-decomposition into this module as `pi_log_decomposition` (from the former analyses.py) and removed the redundant run-and-decompose wrapper, matching the `vi_log_decomposition`/`gpi_log_decomposition` APIs.
+    - Initialized the output flag before the environmental-CAPE call (as in pcmin.m) so a flag tripped by that call is no longer overwritten (GitHub issue #78).
+    - Added a period-2 oscillation rescue to the minimum-pressure iteration: marginal near-neutral soundings whose fixed-point map locks into a 2-cycle (previously non-convergent, IFL=2) are collapsed to the cycle midpoint and converge (IFL=1). Previously-converging profiles are unchanged bit-for-bit.
 """
 # doctest: +ELLIPSIS
 
 # import required packages
 import numpy as np
-from .numba import njit
-from . import constants
-from . import utilities
+
+from . import constants, utilities
+from .numba import guvectorize, njit
+
 
 # define the function to calculate CAPE
 @njit()
-def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
+def cape(TP, RP, PP, T, R, P, ascent_flag=0, ptop=50, miss_handle=1):
     """Calculate the CAPE of a parcel given parcel and environmental conditions.
 
     function [CAPED,TOB,LNB,IFLAG]= cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1)
 
-    This function calculates the CAPE of a parcel given parcel pressure PP (hPa), 
+    This function calculates the CAPE of a parcel given parcel pressure PP (hPa),
     temperature TP (K) and mixing ratio RP (gram/gram) and given a sounding
     of temperature (T in K) and mixing ratio (R in gram/gram) as a function
     of pressure (P in hPa). CAPED is the calculated value of CAPE following
@@ -123,83 +126,82 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
     #
     #   ***  Handle missing values   ***
     #
-    
+
     # find if any values are missing in the temperature or mixing ratio array
-    valid_i=~np.isnan(T)
-    first_valid=np.where(valid_i)[0][0]
+    valid_i = ~np.isnan(T)
+    first_valid = np.where(valid_i)[0][0]
     # Are there missing values? If so, assess according to flag
-    if (np.sum(valid_i) != len(P)):
+    if np.sum(valid_i) != len(P):
         # if not allowed, set IFLAG=3 and return missing CAPE
-        if (miss_handle != 0):
-            CAPED=np.nan
-            TOB=np.nan
-            LNB=np.nan
-            IFLAG=3
+        if miss_handle != 0:
+            CAPED = np.nan
+            TOB = np.nan
+            LNB = np.nan
+            IFLAG = 3
             # Return the unsuitable values
-            return(CAPED,TOB,LNB,IFLAG)
+            return (CAPED, TOB, LNB, IFLAG)
         else:
             # if allowed, but there are missing values between the lowest existing level
             # and ptop, then set IFLAG=3 and return missing CAPE
-            if np.sum(np.isnan(T[first_valid:len(P)])>0):
-                CAPED=np.nan
-                TOB=np.nan
-                LNB=np.nan
-                IFLAG=3
+            if np.sum(np.isnan(T[first_valid : len(P)]) > 0):
+                CAPED = np.nan
+                TOB = np.nan
+                LNB = np.nan
+                IFLAG = 3
                 # Return the unsuitable values
-                return(CAPED,TOB,LNB,IFLAG)
+                return (CAPED, TOB, LNB, IFLAG)
             else:
-                first_lvl=first_valid
+                first_lvl = first_valid
     else:
-        first_lvl=0
+        first_lvl = 0
 
     # Populate new environmental profiles removing values above ptop and
     # find new number, N, of profile levels with which to calculate CAPE.
     # Keep every level with P > ptop (matching pcmin); with the profile ordered
     # by decreasing pressure these are the leading N entries. Using argmin(|P-ptop|)
     # would drop the topmost retained level whenever no level sits exactly at ptop.
-    N=int(np.count_nonzero(P > ptop))
+    N = int(np.count_nonzero(P > ptop))
 
-    P=P[first_lvl:N]
-    T=T[first_lvl:N]
-    R=R[first_lvl:N]
-    nlvl=len(P)
+    P = P[first_lvl:N]
+    T = T[first_lvl:N]
+    R = R[first_lvl:N]
+    nlvl = len(P)
     TVRDIF = np.zeros((nlvl,))
-    
+
     #
     #   ***  Run checks   ***
     #
-    
+
     # CHECK: is the input profile ordered with increasing pressure? If not, return missing CAPE
-    if (P[2]-P[1] > 0):
-        CAPED=0
-        TOB=np.nan
-        LNB=np.nan
-        IFLAG=0
+    if P[2] - P[1] > 0:
+        CAPED = 0
+        TOB = np.nan
+        LNB = np.nan
+        IFLAG = 0
         # Return the unsuitable values
-        return(CAPED,TOB,LNB,IFLAG)
+        return (CAPED, TOB, LNB, IFLAG)
 
     # CHECK: Is the input parcel suitable? If not, return missing CAPE
-    if ((RP < 1e-6) or (TP < 200)):
-        CAPED=0
-        TOB=np.nan
-        LNB=np.nan
-        IFLAG=0
+    if (RP < 1e-6) or (TP < 200):
+        CAPED = 0
+        TOB = np.nan
+        LNB = np.nan
+        IFLAG = 0
         # Return the unsuitable values
-        return(CAPED,TOB,LNB,IFLAG)
-    
+        return (CAPED, TOB, LNB, IFLAG)
+
     #
     #  ***  Define various parcel quantities, including reversible   ***
     #  ***                       entropy, S                          ***
-    #                         
-    TPC=utilities.T_ktoC(TP)                 # Parcel temperature in Celsius
-    ESP=utilities.es_cc(TPC)                # Parcel's saturated vapor pressure
-    EVP=utilities.ev(RP,PP)                 # Parcel's partial vapor pressure
-    RH=EVP/ESP                              # Parcel's relative humidity
-    RH=min([RH,1.0])                        # ensure that the relatively humidity does not exceed 1.0
+    #
+    TPC = utilities.T_ktoC(TP)  # Parcel temperature in Celsius
+    ESP = utilities.es_cc(TPC)  # Parcel's saturated vapor pressure
+    EVP = utilities.ev(RP, PP)  # Parcel's partial vapor pressure
+    RH = EVP / ESP  # Parcel's relative humidity
+    RH = min(RH, 1.0)  # ensure that the relatively humidity does not exceed 1.0
     # calculate reversible total specific entropy per unit mass of dry air (E94, EQN. 4.5.9)
-    S=utilities.entropy_S(TP,RP,PP)
-    
-    
+    S = utilities.entropy_S(TP, RP, PP)
+
     #
     #   ***  Estimate lifted condensation level pressure, PLCL   ***
     #     Based on E94 "calcsound.f" code at http://texmex.mit.edu/pub/emanuel/BOOK/
@@ -209,130 +211,132 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
     #   see https://journals.ametsoc.org/doi/pdf/10.1175/JAS-D-17-0102.1
     #   and Python PLCL code at http://romps.berkeley.edu/papers/pubdata/2016/lcl/lcl.py
     #
-    PLCL=utilities.e_pLCL(TP,RH,PP)
-    
+    PLCL = utilities.e_pLCL(TP, RH, PP)
+
     # Initial default values before loop
-    CAPED=0
-    TOB=T[0]
-    IFLAG=1
+    CAPED = 0
+    TOB = T[0]
+    IFLAG = 1
     # Values to help loop
-    NCMAX=0
-    jmin=int(1e6)
-    
+    jmin = int(1e6)
+
     #
     #   ***  Begin updraft loop   ***
     #
 
     # loop over each level in the profile
     for j in range(nlvl):
-        
         # jmin is the index of the lowest pressure level evaluated in the loop
-        jmin=int(min([jmin,j]))
-    
+        jmin = int(min(jmin, j))
+
         #
         #   *** Calculate Parcel quantities BELOW lifted condensation level   ***
         #
-        if (P[j] >= PLCL):
+        if P[j] >= PLCL:
             # Parcel temperature at this pressure
-            TG=TP*(P[j]/PP)**(constants.RD/constants.CPD)
+            TG = TP * (P[j] / PP) ** (constants.RD / constants.CPD)
             # Parcel Mixing ratio
-            RG=RP
+            RG = RP
             # Parcel and Environmental Density Temperatures at this pressure (E94, EQN. 4.3.1 and 6.3.7)
-            TLVR=utilities.Trho(TG,RG,RG)
-            TVENV=utilities.Trho(T[j],R[j],R[j])
+            TLVR = utilities.Trho(TG, RG, RG)
+            TVENV = utilities.Trho(T[j], R[j], R[j])
             # Bouyancy of the parcel in the environment (Proxy of E94, EQN. 6.1.5)
-            TVRDIF[j,]=TLVR-TVENV
-            
+            TVRDIF[j,] = TLVR - TVENV
+
         #
         #   *** Calculate Parcel quantities ABOVE lifted condensation level   ***
-        # 
+        #
         else:
             TG, RG, IFLAG = solve_temperature_from_entropy(S=S, P=P[j], RP=RP, T_initial=T[j])
             if IFLAG == 2:  # Did not converge
-                CAPED=0
-                TOB=T[0]
-                LNB=P[0]
+                CAPED = 0
+                TOB = T[0]
+                LNB = P[0]
                 # Return the uncoverged values
-                return(CAPED,TOB,LNB,IFLAG)
+                return (CAPED, TOB, LNB, IFLAG)
 
             #
             #   *** Calculate buoyancy   ***
             #
             # Parcel total mixing ratio: either reversible (ascent_flag=0) or pseudo-adiabatic (ascent_flag=1)
-            RMEAN=ascent_flag*RG+(1-ascent_flag)*RP
+            RMEAN = ascent_flag * RG + (1 - ascent_flag) * RP
             # Parcel and Environmental Density Temperatures at this pressure (E94, EQN. 4.3.1 and 6.3.7)
-            TLVR=utilities.Trho(TG,RMEAN,RG)
-            TENV=utilities.Trho(T[j],R[j],R[j])
+            TLVR = utilities.Trho(TG, RMEAN, RG)
+            TENV = utilities.Trho(T[j], R[j], R[j])
             # Bouyancy of the parcel in the environment (Proxy of E94, EQN. 6.1.5)
-            TVRDIF[j,]=TLVR-TENV
-            
+            TVRDIF[j,] = TLVR - TENV
 
     #
     #  ***  Begin loop to find Positive areas (PA) and Negative areas (NA) ***
     #                  ***  and CAPE from reversible ascent ***
-    NA=0.0
-    PA=0.0
-    
+    NA = 0.0
+    PA = 0.0
+
     #
     #   ***  Find maximum level of positive buoyancy, INB    ***
     #
-    INB=0
-    for j in range(nlvl-1, jmin, -1):
-        if (TVRDIF[j] > 0):
-            INB=max([INB,j])
-            
-    # CHECK: Is the LNB higher than the surface? If not, return zero CAPE  
-    if (INB==0):
-        CAPED=0
-        TOB=T[0]
-        LNB=P[INB]
-#         TOB=np.nan
-        LNB=0
+    INB = 0
+    for j in range(nlvl - 1, jmin, -1):
+        if TVRDIF[j] > 0:
+            INB = max(INB, j)
+
+    # CHECK: Is the LNB higher than the surface? If not, return zero CAPE
+    if INB == 0:
+        CAPED = 0
+        TOB = T[0]
+        LNB = P[INB]
+        #         TOB=np.nan
+        LNB = 0
         # Return the unconverged values
-        return(CAPED,TOB,LNB,IFLAG)
-    
+        return (CAPED, TOB, LNB, IFLAG)
+
     # if check is passed, continue with the CAPE calculation
     else:
-    
-    #
-    #   ***  Find positive and negative areas and CAPE  ***
-    #                  via E94, EQN. 6.3.6)
-    #
-        for j in range(jmin+1, INB+1, 1):
-            PFAC=constants.RD*(TVRDIF[j]+TVRDIF[j-1])*(P[j-1]-P[j])/(P[j]+P[j-1])
-            PA=PA+max([PFAC,0.0])
-            NA=NA-min([PFAC,0.0])
+        #
+        #   ***  Find positive and negative areas and CAPE  ***
+        #                  via E94, EQN. 6.3.6)
+        #
+        for j in range(jmin + 1, INB + 1, 1):
+            PFAC = (
+                constants.RD * (TVRDIF[j] + TVRDIF[j - 1]) * (P[j - 1] - P[j]) / (P[j] + P[j - 1])
+            )
+            PA = PA + max(PFAC, 0.0)
+            NA = NA - min(PFAC, 0.0)
 
-    #
-    #   ***   Find area between parcel pressure and first level above it ***
-    #
-        PMA=(PP+P[jmin])
-        PFAC=constants.RD*(PP-P[jmin])/PMA
-        PA=PA+PFAC*max([TVRDIF[jmin],0.0])
-        NA=NA-PFAC*min([TVRDIF[jmin],0.0])
-        
-    #
-    #   ***   Find residual positive area above INB and TO  ***
-    #         and finalize estimate of LNB and its temperature
-    #
-        PAT=0.0
-        TOB=T[INB]
-        LNB=P[INB]
-        if (INB < nlvl-1):
-            PINB=(P[INB+1]*TVRDIF[INB]-P[INB]*TVRDIF[INB+1])/(TVRDIF[INB]-TVRDIF[INB+1])
-            LNB=PINB
-            PAT=constants.RD*TVRDIF[INB]*(P[INB]-PINB)/(P[INB]+PINB)
-            TOB=(T[INB]*(PINB-P[INB+1])+T[INB+1]*(P[INB]-PINB))/(P[INB]-P[INB+1])
-    
-    #
-    #   ***   Find CAPE  ***
-    #            
-        CAPED=PA+PAT-NA
-        CAPED=max([CAPED,0.0])
+        #
+        #   ***   Find area between parcel pressure and first level above it ***
+        #
+        PMA = PP + P[jmin]
+        PFAC = constants.RD * (PP - P[jmin]) / PMA
+        PA = PA + PFAC * max(TVRDIF[jmin], 0.0)
+        NA = NA - PFAC * min(TVRDIF[jmin], 0.0)
+
+        #
+        #   ***   Find residual positive area above INB and TO  ***
+        #         and finalize estimate of LNB and its temperature
+        #
+        PAT = 0.0
+        TOB = T[INB]
+        LNB = P[INB]
+        if INB < nlvl - 1:
+            PINB = (P[INB + 1] * TVRDIF[INB] - P[INB] * TVRDIF[INB + 1]) / (
+                TVRDIF[INB] - TVRDIF[INB + 1]
+            )
+            LNB = PINB
+            PAT = constants.RD * TVRDIF[INB] * (P[INB] - PINB) / (P[INB] + PINB)
+            TOB = (T[INB] * (PINB - P[INB + 1]) + T[INB + 1] * (P[INB] - PINB)) / (
+                P[INB] - P[INB + 1]
+            )
+
+        #
+        #   ***   Find CAPE  ***
+        #
+        CAPED = PA + PAT - NA
+        CAPED = max(CAPED, 0.0)
         # set the flag to OK if procedure reached this point
-        IFLAG=1
-        # Return the calculated outputs to the above program level 
-        return(CAPED,TOB,LNB,IFLAG)
+        IFLAG = 1
+        # Return the calculated outputs to the above program level
+        return (CAPED, TOB, LNB, IFLAG)
 
 
 @njit()
@@ -380,64 +384,64 @@ def solve_temperature_from_entropy(S, P, RP, T_initial):
         TG: 292.676..., RG: 0.0144..., IFLAG: 1
     """
     # Initial default values before loop
-    TGNEW=T_initial
-    TJC=utilities.T_ktoC(T_initial)
-    ES=utilities.es_cc(TJC)
-    RG=utilities.rv(ES,P)
-    
+    TGNEW = T_initial
+    TJC = utilities.T_ktoC(T_initial)
+    ES = utilities.es_cc(TJC)
+    RG = utilities.rv(ES, P)
+
     #
     #   ***  Iteratively calculate lifted parcel temperature and mixing   ***
     #   ***                ratio for reversible ascent                    ***
     #
-    
+
     # set loop counter and initial condition
-    NC=0
-    TG=0
+    NC = 0
+    TG = 0
 
     # loop until loop converges or bails out
-    while ((np.abs(TGNEW-TG)) > 0.001):
-    
+    while (np.abs(TGNEW - TG)) > 0.001:
         # Parcel temperature and mixing ratio during this iteration
-        TG=TGNEW
-        TC=utilities.T_ktoC(TG)
-        ENEW=utilities.es_cc(TC)
-        RG=utilities.rv(ENEW,P)
-        
+        TG = TGNEW
+        TC = utilities.T_ktoC(TG)
+        ENEW = utilities.es_cc(TC)
+        RG = utilities.rv(ENEW, P)
+
         # increase iteration count in the loop
         NC += 1
-        
+
         #
         #   ***  Calculate estimates of the rates of change of the entropy    ***
         #   ***           with temperature at constant pressure               ***
         #
 
-        ALV=utilities.Lv(TC)
+        ALV = utilities.Lv(TC)
         # calculate the rate of change of entropy with temperature, s_ell
-        SL=(constants.CPD+RP*constants.CL+ALV*ALV*RG/(constants.RV*TG*TG))/TG
-        EM=utilities.ev(RG,P)
+        SL = (constants.CPD + RP * constants.CL + ALV * ALV * RG / (constants.RV * TG * TG)) / TG
+        EM = utilities.ev(RG, P)
         # calculate the saturated entropy, s_k, noting r_T=RP and
         # the last term vanishes with saturation, i.e. RH=1
-        SG=(constants.CPD+RP*constants.CL)*np.log(TG)-constants.RD*np.log(P-EM)+ALV*RG/TG
-        # convergence speed (AP, step in entropy fraction) varies as a function of 
+        SG = (
+            (constants.CPD + RP * constants.CL) * np.log(TG)
+            - constants.RD * np.log(P - EM)
+            + ALV * RG / TG
+        )
+        # convergence speed (AP, step in entropy fraction) varies as a function of
         # number of iterations
-        if (NC < 3):
+        if NC < 3:
             # converge slowly with a smaller step
-            AP=0.3
+            AP = 0.3
         else:
             # speed the process with a larger step when nearing convergence
-            AP=1.0
+            AP = 1.0
         # find the new temperature in the iteration
-        TGNEW=TG+AP*(S-SG)/SL
-        
+        TGNEW = TG + AP * (S - SG) / SL
+
         #
         #   ***   If the routine does not converge, set IFLAG=2 and bail out   ***
         #
-        if (NC > 500) or (ENEW > (P-1)):
+        if (NC > 500) or (ENEW > (P - 1)):
             IFLAG = 2  # Did not converge
             return TG, RG, IFLAG
-        
-        # store the number of iterations
-        NCMAX=NC
 
     IFLAG = 1  # Success
     return TG, RG, IFLAG
@@ -469,181 +473,236 @@ def _pi_numba(
     """
 
     # convert units
-    SSTK=utilities.T_Ctok(SSTC) # SST in kelvin
-    T=utilities.T_Ctok(TC)      # Temperature profile in kelvin
-    R=R*0.001                   # Mixing ratio profile in g/g
+    SSTK = utilities.T_Ctok(SSTC)  # SST in kelvin
+    T = utilities.T_Ctok(TC)  # Temperature profile in kelvin
+    R = R * 0.001  # Mixing ratio profile in g/g
+
+    # CHECK 0: is MSL missing? If so, set IFL=3 and return missing PI.
+    # (Mirrors the pi() wrapper guard with the same precedence; needed for the
+    # whole-field pi_field path, where per-cell MSL NaNs reach this compiled core
+    # directly. Untaken for valid MSL, so existing results are unchanged.)
+    if np.isnan(MSL):
+        VMAX = np.nan
+        PMIN = np.nan
+        IFL = 3
+        TO = np.nan
+        OTL = np.nan
+        return (VMAX, PMIN, IFL, TO, OTL)
 
     # CHECK 1a: do SSTs exceed 5C?
     # CHECK 1b: are SSTs less than 100C (if not, indicative of input in kelvin)
     # If not, set IFL=0 and return missing PI
-    if (SSTC <= 5.0 or SSTC>100):
-        VMAX=np.nan
-        PMIN=np.nan
-        IFL=0
-        TO=np.nan
-        OTL=np.nan
-        return(VMAX,PMIN,IFL,TO,OTL)
+    if SSTC <= 5.0 or SSTC > 100:
+        VMAX = np.nan
+        PMIN = np.nan
+        IFL = 0
+        TO = np.nan
+        OTL = np.nan
+        return (VMAX, PMIN, IFL, TO, OTL)
     # CHECK 1c: are SSTs missing? If so, set IFL=0 and return missing PI
-    elif (np.isnan(SSTC)==True):
-        VMAX=np.nan
-        PMIN=np.nan
-        IFL=0
-        TO=np.nan
-        OTL=np.nan
-        return(VMAX,PMIN,IFL,TO,OTL)
+    elif np.isnan(SSTC):
+        VMAX = np.nan
+        PMIN = np.nan
+        IFL = 0
+        TO = np.nan
+        OTL = np.nan
+        return (VMAX, PMIN, IFL, TO, OTL)
 
     # CHECK 2a: do Temperature profiles exceed 100K?
     # CHECK 2b: are Temperatures in Celsius less than 100C (if not, indicative of input in kelvin)
     # If not, set IFL=0 and return missing PI
-    if (np.min(T) <= 100 or np.max(TC)>100):
-        VMAX=np.nan
-        PMIN=np.nan
-        IFL=0
-        TO=np.nan
-        OTL=np.nan
-        return(VMAX,PMIN,IFL,TO,OTL)
-    
+    if np.min(T) <= 100 or np.max(TC) > 100:
+        VMAX = np.nan
+        PMIN = np.nan
+        IFL = 0
+        TO = np.nan
+        OTL = np.nan
+        return (VMAX, PMIN, IFL, TO, OTL)
+
     # Set Missing mixing ratios to zero g/g, following Kerry's BE02 algorithm
-    R[np.isnan(R)]=0.
-    
+    R[np.isnan(R)] = 0.0
+
     # Saturated water vapor pressure
     # from Clausius-Clapeyron relation/August-Roche-Magnus formula
-    ES0=utilities.es_cc(SSTC)
+    ES0 = utilities.es_cc(SSTC)
 
     # define the level from which parcels are lifted. Normally the lowest level
     # (index 0). Under miss_handle=0 (ignore-NaN), skip any leading missing
     # temperature levels (e.g. sub-surface levels over topography) so the parcel is
     # lifted from the lowest *valid* level rather than a NaN.
-    NK=0
+    NK = 0
     if miss_handle == 0:
         valid_T = ~np.isnan(T)
         if np.any(valid_T):
             NK = int(np.where(valid_T)[0][0])
 
     #
-    #   ***   Find environmental CAPE *** 
+    #   ***   Find environmental CAPE ***
     #
-    TP=T[NK]
-    RP=R[NK]
-    PP=P[NK]
-    result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle)
+    # Default flag for the CAPE calculations. Initialized BEFORE the environmental
+    # CAPE call (as in pcmin.m) so a flag tripped by CAPEA is not clobbered by a
+    # later reset (see GitHub issue #78).
+    IFL = 1
+    TP = T[NK]
+    RP = R[NK]
+    PP = P[NK]
+    result = cape(TP, RP, PP, T, R, P, ascent_flag, ptop, miss_handle)
     CAPEA = result[0]
     IFLAG = result[3]
     # if the CAPE function tripped a flag, set the output IFL to it
-    if (IFLAG != 1):
-        IFL=int(IFLAG)
-    
+    if IFLAG != 1:
+        IFL = int(IFLAG)
+
     #
     #   ***   Begin iteration to find mimimum pressure   ***
     #
-    
-    # set loop counter and initial condition
-    NP=0         # loop counter
-    PM=970.0
-    PMOLD=PM     # initial condition from minimum pressure
-    PNEW=0.0     # initial condition from minimum pressure
-    IFL=int(1)   # Default flag for CAPE calculation
 
-    TO_ENV=np.nan
-    OTL_ENV=np.nan
+    # set loop counter and initial condition
+    NP = 0  # loop counter
+    PM = 970.0
+    PMOLD = PM  # initial condition from minimum pressure
+    PNEW = 0.0  # initial condition from minimum pressure
+
+    TO_ENV = np.nan
+    OTL_ENV = np.nan
 
     # loop until convergence or bail out
-    while (np.abs(PNEW-PMOLD) > 0.5):
-        
+    while np.abs(PNEW - PMOLD) > 0.5:
         #
         #   ***  Find CAPE at radius of maximum winds   ***
         #
-        TP=T[NK]
-        PP=min([PM,1000.0])
+        TP = T[NK]
+        PP = min(PM, 1000.0)
         # find the mixing ratio with the average of the lowest level pressure and MSL
-        RP=constants.EPS*R[NK]*MSL/(PP*(constants.EPS+R[NK])-R[NK]*MSL)
-        CAPEM, TOB_ENV, LNB_ENV, IFLAG = cape(
-            TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle
-        )
+        RP = constants.EPS * R[NK] * MSL / (PP * (constants.EPS + R[NK]) - R[NK] * MSL)
+        CAPEM, TOB_ENV, LNB_ENV, IFLAG = cape(TP, RP, PP, T, R, P, ascent_flag, ptop, miss_handle)
         # if the CAPE function tripped a different flag, set the output IFL to it
-        if (IFLAG != 1):
-            IFL=int(IFLAG)
-        TO_ENV=TOB_ENV
-        OTL_ENV=LNB_ENV
-        
+        if IFLAG != 1:
+            IFL = int(IFLAG)
+        TO_ENV = TOB_ENV
+        OTL_ENV = LNB_ENV
+
         #
         #  ***  Find saturation CAPE at radius of maximum winds    ***
         #  *** Note that TO and OTL are found with this assumption ***
         #
-        TP=SSTK
-        PP=min([PM,1000.0])
-        RP=utilities.rv(ES0,PP)
-        result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle)
+        TP = SSTK
+        PP = min(PM, 1000.0)
+        RP = utilities.rv(ES0, PP)
+        result = cape(TP, RP, PP, T, R, P, ascent_flag, ptop, miss_handle)
         CAPEMS, TOMS, LNBS, IFLAG = result
         # if the CAPE function tripped a flag, set the output IFL to it
-        if (IFLAG != 1):
-            IFL=int(IFLAG)
+        if IFLAG != 1:
+            IFL = int(IFLAG)
         # Store the outflow temperature and level of neutral bouyancy at the outflow level (OTL)
-        TO=TOMS   
-        OTL=LNBS
+        TO = TOMS
+        OTL = LNBS
         # Optionally use CAPEenv (final-iteration) outflow definition.
         if outflow_source_flag == 1:
-            TO=TO_ENV
-            OTL=OTL_ENV
+            TO = TO_ENV
+            OTL = OTL_ENV
         # Calculate the proxy for TC efficiency (BE02, EQN. 1-3)
-        RAT=SSTK/TO
+        RAT = SSTK / TO
         # If dissipative heating is "off", TC efficiency proxy is set to 1.0 (BE02, pg. 3)
-        if (diss_flag == 0):
-            RAT=1.0
-        
+        if diss_flag == 0:
+            RAT = 1.0
+
         #
         #  ***  Initial estimate of pressure at the radius of maximum winds  ***
         #
-        RS0=RP
+        RS0 = RP
         # Lowest level and Sea-surface Density Temperature (E94, EQN. 4.3.1 and 6.3.7)
-        TV0=utilities.Trho(T[NK],R[NK],R[NK])
-        TVSST=utilities.Trho(SSTK,RS0,RS0)
+        TV0 = utilities.Trho(T[NK], R[NK], R[NK])
+        TVSST = utilities.Trho(SSTK, RS0, RS0)
         # Average Surface Density Temperature, e.g. 1/2*[Tv(Tsfc)+Tv(sst)]
-        TVAV=0.5*(TV0+TVSST)
+        TVAV = 0.5 * (TV0 + TVSST)
         # Converge toward CAPE*-CAPEM (BE02, EQN 3-4)
-        CAT=(CAPEM-CAPEA)+0.5*CKCD*RAT*(CAPEMS-CAPEM)
-        CAT=max([CAT,0.0])
+        CAT = (CAPEM - CAPEA) + 0.5 * CKCD * RAT * (CAPEMS - CAPEM)
+        CAT = max(CAT, 0.0)
         # Iterate on pressure
-        PNEW=MSL*np.exp(-CAT/(constants.RD*TVAV))
-        
+        PNEW = MSL * np.exp(-CAT / (constants.RD * TVAV))
+
+        #
+        #   ***  Rescue persistent period-2 oscillations  ***
+        #
+        # At this point PM is the current iterate x_n and PMOLD is x_(n-1), i.e.
+        # the state two iterations back relative to PNEW = x_(n+1). For marginal
+        # (near-zero environmental CAPE) soundings the fixed-point map can lock
+        # into a period-2 cycle whose amplitude exceeds the 0.5 hPa tolerance,
+        # which in BE02/pcmin.m runs to the iteration cap and returns missing.
+        # When PNEW returns to within eps of x_(n-1) while the step is still
+        # super-tolerance, collapse to the cycle midpoint and continue; the loop
+        # then exits through the normal convergence path (IFL=1). Convergent
+        # trajectories exit within ~10 iterations and never reach this branch,
+        # so all previously-converging results are unchanged bit-for-bit.
+        if (NP >= 10) and (np.abs(PNEW - PMOLD) < 1e-5) and (np.abs(PNEW - PM) > 0.5):
+            PNEW = 0.5 * (PNEW + PM)
+
         #
         #   ***  Test for convergence (setup for possible next while iteration)  ***
         #
-        # store the previous step's pressure       
-        PMOLD=PM
+        # store the previous step's pressure
+        PMOLD = PM
         # store the current step's pressure
-        PM=PNEW
-        
+        PM = PNEW
+
         # increase iteration count in the loop
         NP += 1
         #
         #   ***   If the routine does not converge, set IFL=2 and return missing PI   ***
         #
-        if (NP > 200)  or (PM < 400):
-            VMAX=np.nan
-            PMIN=np.nan
-            IFL=2
-            TO=np.nan
-            OTL=np.nan
-            return(VMAX,PMIN,IFL,TO,OTL)
-    
+        if (NP > 200) or (PM < 400):
+            VMAX = np.nan
+            PMIN = np.nan
+            IFL = 2
+            TO = np.nan
+            OTL = np.nan
+            return (VMAX, PMIN, IFL, TO, OTL)
+
     # Once converged, set potential intensity at the radius of maximum winds
-    CATFAC=0.5*(1.+1/constants.b)
-    CAT=(CAPEM-CAPEA)+CKCD*RAT*CATFAC*(CAPEMS-CAPEM)
-    CAT=max([CAT,0.0])
-    
+    CATFAC = 0.5 * (1.0 + 1 / constants.b)
+    CAT = (CAPEM - CAPEA) + CKCD * RAT * CATFAC * (CAPEMS - CAPEM)
+    CAT = max(CAT, 0.0)
+
     # Calculate the minimum pressure at the eye of the storm
     # BE02 EQN. 4
-    PMIN=MSL*np.exp(-CAT/(constants.RD*TVAV))
-                 
+    PMIN = MSL * np.exp(-CAT / (constants.RD * TVAV))
+
     # Calculate the potential intensity at the radius of maximum winds
-    # BE02 EQN. 3, reduced by some fraction (default 20%) to account for the reduction 
+    # BE02 EQN. 3, reduced by some fraction (default 20%) to account for the reduction
     # of 10-m winds from gradient wind speeds (Emanuel 2000, Powell 1980)
-    FAC=max([0.0,(CAPEMS-CAPEM)])
-    VMAX=V_reduc*np.sqrt(CKCD*RAT*FAC)
-        
+    FAC = max(0.0, (CAPEMS - CAPEM))
+    VMAX = V_reduc * np.sqrt(CKCD * RAT * FAC)
+
     # Return the calculated outputs to the above program level
-    return(VMAX,PMIN,IFL,TO,OTL)
+    return (VMAX, PMIN, IFL, TO, OTL)
+
+
+def _outflow_source_flag(outflow_source):
+    """Map the ``outflow_source`` keyword to the compiled core's integer flag.
+
+    Shared by :func:`pi` and :func:`pi_field` so the accepted values and error
+    message cannot drift between the two entry points.
+    """
+    if outflow_source == "cape_star":
+        return 0
+    if outflow_source == "cape_env":
+        return 1
+    raise ValueError(
+        f"Invalid outflow_source={outflow_source!r}; expected 'cape_star' or 'cape_env'."
+    )
+
+
+def _sort_profile_descending(P, TC, R):
+    """Sort profile arrays to decreasing pressure along the trailing level axis.
+
+    Shared by :func:`pi` (1-D profiles) and :func:`pi_field` (N-D fields with the
+    level dimension last); already-descending input is returned untouched.
+    """
+    order = np.argsort(P)[::-1]
+    if np.array_equal(order, np.arange(P.size)):
+        return P, TC, R
+    return P[order], np.take(TC, order, axis=-1), np.take(R, order, axis=-1)
 
 
 def pi(
@@ -742,9 +801,26 @@ def pi(
             Status flag:
 
             - ``1``: success
-            - ``0``: no convergence
-            - ``2``: CAPE routine failed to converge
-            - ``3``: CAPE routine failed due to missing data
+            - ``0``: invalid input (e.g. SST <= 5 C, Kelvin-like units, improper sounding)
+            - ``2``: routine did not converge (pressure iteration or CAPE solver)
+            - ``3``: missing data in the input profile
+
+            Notes on flag semantics:
+
+            - For marginal (near-zero CAPE) soundings whose pressure iteration
+              locks into a persistent period-2 oscillation, the solver collapses
+              the cycle to its midpoint and converges (``IFL=1``) when the cycle
+              amplitude is at most ~1 hPa (twice the convergence tolerance) —
+              which covers the observed marginal cases. Larger-amplitude cycles
+              fail safe and still return ``IFL=2``. This is a documented,
+              deliberate improvement over pcmin.m, which returns missing for all
+              such soundings.
+            - A flag tripped by the *environmental*-CAPE calculation persists
+              (see GitHub issue #78), so ``IFL=0`` or ``IFL=3`` can accompany
+              finite ``VMAX``/``PMIN`` on an otherwise-converged column (e.g. a
+              degenerate near-dry surface parcel). Treat ``IFL==1`` as the
+              "fully trustworthy output" gate. (pcmin.m collapses these cases to
+              its generic non-convergence flag instead.)
         - TO : float
             Outflow temperature (K).
         - OTL : float
@@ -817,35 +893,24 @@ def pi(
             >>> pi(SSTC, MSL, P, TC, R + nan_in_levels)
             (82.4845..., 900.2039..., 1, 197.1666..., 84.9169...)
     """
-    if outflow_source == "cape_star":
-        outflow_source_flag = 0
-    elif outflow_source == "cape_env":
-        outflow_source_flag = 1
-    else:
-        raise ValueError(
-            f"Invalid outflow_source={outflow_source!r}; expected 'cape_star' or 'cape_env'."
-        )
+    outflow_source_flag = _outflow_source_flag(outflow_source)
 
     P = np.asarray(P)
     TC = np.asarray(TC)
     R = np.asarray(R)
 
-    # Guard against NaNs the Numba core cannot flag safely. A NaN in the pressure
-    # array or in MSL poisons the CAPE integration and the pressure-convergence
-    # loop, which can otherwise exit early and return numerically plausible values
-    # with IFL=1. Fail fast to IFL=3 (missing data), matching NaN handling of the
-    # temperature profile.
-    if np.any(np.isnan(P)) or np.any(np.isnan(np.asarray(MSL, dtype=float))):
+    # Guard against NaNs in the shared pressure array, which poison the CAPE
+    # integration (the loop can otherwise exit early and return numerically
+    # plausible values with IFL=1). Fail fast to IFL=3 (missing data). NaN MSL is
+    # handled by CHECK 0 inside the compiled core, the single owner of that policy
+    # for both pi() and pi_field().
+    if np.any(np.isnan(P)):
         return (np.nan, np.nan, 3, np.nan, np.nan)
 
     # Order-agnostic: the algorithm requires lowest index = lowest level
     # (decreasing pressure). Sort the profile here so any input ordering is
     # accepted; already-descending input is left untouched.
-    order = np.argsort(P)[::-1]
-    if not np.array_equal(order, np.arange(P.size)):
-        P = P[order]
-        TC = TC[order]
-        R = R[order]
+    P, TC, R = _sort_profile_descending(P, TC, R)
 
     return _pi_numba(
         SSTC,
@@ -860,6 +925,216 @@ def pi(
         ptop=ptop,
         miss_handle=miss_handle,
         outflow_source_flag=outflow_source_flag,
+    )
+
+
+if guvectorize is not None:
+    # Whole-field generalized ufunc around the compiled per-column core. Processing
+    # the entire field inside compiled, multithreaded code removes the per-column
+    # Python-loop overhead of xarray.apply_ufunc(..., vectorize=True) (the speedup
+    # highlighted by GitHub issue #86). Same per-column math as pi(): results are
+    # bit-identical for identical (float64) inputs.
+    @guvectorize(
+        [
+            "void(float64, float64, float64[:], float64[:], float64[:], "
+            "float64, int64, int64, float64, float64, int64, int64, "
+            "float64[:], float64[:], int64[:], float64[:], float64[:])"
+        ],
+        "(),(),(n),(n),(n),(),(),(),(),(),(),()->(),(),(),(),()",
+        target="parallel",
+        cache=True,
+    )
+    def _pi_field_gufunc(
+        sstc,
+        msl,
+        p,
+        tc,
+        r,
+        ckcd,
+        ascent_flag,
+        diss_flag,
+        v_reduc,
+        ptop,
+        miss_handle,
+        outflow_source_flag,
+        vmax,
+        pmin,
+        ifl,
+        to,
+        otl,
+    ):
+        res = _pi_numba(
+            sstc,
+            msl,
+            p,
+            tc,
+            r,
+            ckcd,
+            ascent_flag,
+            diss_flag,
+            v_reduc,
+            ptop,
+            miss_handle,
+            outflow_source_flag,
+        )
+        vmax[0] = res[0]
+        pmin[0] = res[1]
+        ifl[0] = res[2]
+        to[0] = res[3]
+        otl[0] = res[4]
+else:  # pragma: no cover - exercised only with TCPYPI_DISABLE_NUMBA=1
+    _pi_field_gufunc = None
+
+
+def pi_field(
+    SSTC,
+    MSL,
+    P,
+    TC,
+    R,
+    *,
+    CKCD=0.9,
+    ascent_flag=0,
+    diss_flag=1,
+    V_reduc=0.8,
+    ptop=50,
+    miss_handle=1,
+    outflow_source="cape_star",
+):
+    r"""Calculate potential intensity over a whole gridded field at once.
+
+    A fast, compiled, multithreaded path over many columns: the entire field is
+    processed inside a Numba generalized ufunc (``target='parallel'``), removing
+    the per-column Python-loop overhead of ``xarray.apply_ufunc(pi, ...,
+    vectorize=True)``. The per-column math is identical to :func:`pi` (the same
+    compiled core), so for identical float64 inputs the results are bit-identical.
+    Motivated by the whole-field benchmark in GitHub issue #86 — implemented
+    natively so only tcpyPI code executes.
+
+    Parameters
+    ----------
+    SSTC : array-like
+        Sea surface temperatures (C); any shape (e.g. ``(month, lat, lon)``).
+        NaN cells (e.g. land) return missing with ``IFL=0``.
+    MSL : array-like
+        Mean sea level pressures (hPa), broadcastable against `SSTC`.
+        NaN cells return missing with ``IFL=3``.
+    P : array
+        1-D pressure levels (hPa), shared by all columns. Any vertical order is
+        accepted (sorted internally to decreasing pressure).
+    TC, R : array-like
+        Temperature (C) and mixing ratio (g/kg) profiles. The **level dimension
+        must be the last (trailing) axis**; leading axes broadcast against `SSTC`.
+        (With xarray, ``xr.apply_ufunc(pi_field, ..., input_core_dims=[[], [],
+        ['p'], ['p'], ['p']], ...)`` arranges this automatically — no
+        ``vectorize=True`` needed.)
+    CKCD, ascent_flag, diss_flag, V_reduc, ptop, miss_handle, outflow_source
+        As in :func:`pi`.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        ``(VMAX, PMIN, IFL, TO, OTL)`` with the broadcast field shape; `IFL` is an
+        integer array. See :func:`pi` for definitions, units, and flag meanings.
+
+    Notes
+    -----
+    Inputs are converted to float64 (use :func:`pi` directly if you need another
+    precision path). If Numba is disabled/unavailable, falls back to a per-column
+    loop over :func:`pi` (slow but correct).
+
+    Examples
+    --------
+        >>> field = pi_field(np.array([[30.0, np.nan]]), 1010.0,
+        ...                  np.array([1000., 900, 800, 700, 600, 500, 400, 300, 200, 100, 50]),
+        ...                  np.array([28., 22, 16, 11, 5, -2, -11, -27, -49, -79, -64]),
+        ...                  np.array([18., 12, 9, 4, 1.7, 1.7, 0.2, 0.1, 0.05, 0.003, 0.002]))
+        >>> field[2].tolist()  # IFL: ocean cell converges, NaN-SST cell is missing
+        [[1, 0]]
+    """
+    outflow_source_flag = _outflow_source_flag(outflow_source)
+
+    SSTC = np.asarray(SSTC, dtype=np.float64)
+    MSL = np.asarray(MSL, dtype=np.float64)
+    # ascontiguousarray for the profile arrays: xarray.apply_ufunc hands us
+    # transposed (strided) views; a contiguous layout lets the parallel gufunc
+    # stream each column from adjacent memory. Memory layout only — values (and
+    # therefore results) are unchanged.
+    P = np.ascontiguousarray(P, dtype=np.float64)
+    TC = np.ascontiguousarray(TC, dtype=np.float64)
+    R = np.ascontiguousarray(R, dtype=np.float64)
+
+    if P.ndim != 1:
+        raise ValueError(
+            "pi_field expects a single 1-D pressure-level array shared by all "
+            "columns; for per-column pressure grids call pi() per column."
+        )
+    if TC.shape[-1] != P.size or R.shape[-1] != P.size:
+        raise ValueError(
+            "The level dimension of TC and R must be the last axis and match P "
+            f"(got P: {P.size}, TC: {TC.shape[-1]}, R: {R.shape[-1]})."
+        )
+
+    field_shape = np.broadcast_shapes(SSTC.shape, MSL.shape, TC.shape[:-1], R.shape[:-1])
+
+    # Global guard (mirrors pi()): a NaN anywhere in the shared pressure array
+    # poisons every column, so return an all-missing field with IFL=3.
+    if np.any(np.isnan(P)):
+        nanfield = np.full(field_shape, np.nan)
+        return (
+            nanfield,
+            nanfield.copy(),
+            np.full(field_shape, 3, dtype=np.int64),
+            nanfield.copy(),
+            nanfield.copy(),
+        )
+
+    # Order-agnostic: sort the shared profile to decreasing pressure once.
+    P, TC, R = _sort_profile_descending(P, TC, R)
+
+    if _pi_field_gufunc is None:
+        # Pure-Python fallback (TCPYPI_DISABLE_NUMBA=1 or Numba unavailable).
+        b_sst, b_msl = np.broadcast_arrays(
+            np.broadcast_to(SSTC, field_shape), np.broadcast_to(MSL, field_shape)
+        )
+        b_tc = np.broadcast_to(TC, field_shape + (P.size,))
+        b_r = np.broadcast_to(R, field_shape + (P.size,))
+        vmax = np.full(field_shape, np.nan)
+        pmin = np.full(field_shape, np.nan)
+        ifl = np.zeros(field_shape, dtype=np.int64)
+        to = np.full(field_shape, np.nan)
+        otl = np.full(field_shape, np.nan)
+        for idx in np.ndindex(field_shape):
+            out = pi(
+                b_sst[idx],
+                b_msl[idx],
+                P,
+                b_tc[idx],
+                b_r[idx],
+                CKCD=CKCD,
+                ascent_flag=ascent_flag,
+                diss_flag=diss_flag,
+                V_reduc=V_reduc,
+                ptop=ptop,
+                miss_handle=miss_handle,
+                outflow_source=outflow_source,
+            )
+            vmax[idx], pmin[idx], ifl[idx], to[idx], otl[idx] = out
+        return (vmax, pmin, ifl, to, otl)
+
+    return _pi_field_gufunc(
+        SSTC,
+        MSL,
+        P,
+        TC,
+        R,
+        float(CKCD),
+        int(ascent_flag),
+        int(diss_flag),
+        float(V_reduc),
+        float(ptop),
+        int(miss_handle),
+        int(outflow_source_flag),
     )
 
 

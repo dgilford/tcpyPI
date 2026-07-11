@@ -1,22 +1,23 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
+requires = ["hatchling", "hatch-vcs", "hatch-fancy-pypi-readme"]
 build-backend = "hatchling.build"
 
 [project]
 name = "tcpyPI"
-dynamic = ["version"]
+# `readme` is dynamic: hatch-fancy-pypi-readme rewrites the README's relative
+# links/images to absolute GitHub URLs so they render on PyPI (see below).
+dynamic = ["version", "readme"]
 description = "tcpyPI: Tropical cyclone potential intensity calculations in Python"
-readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = {file = "LICENSE" }
 authors = [
     { name = "Daniel M. Gilford, PhD", email = "dgilford@climatecentral.org" }
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Intended Audience :: Science/Research",
@@ -39,26 +40,85 @@ Issues = "https://github.com/dgilford/tcpyPI/issues"
 
 # Configure hatch-vcs to extract version information from version control (e.g. Git tags)
 [tool.hatch.version]
-source = "vcs" 
+source = "vcs"
 
+# Assemble the PyPI long description from README.md, rewriting relative links and
+# images to absolute GitHub URLs (PyPI does not resolve relative paths).
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "README.md"
+
+# HTML <img src="./..."> -> raw.githubusercontent URLs (render inline on PyPI)
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '(<img[^>]*src=")\./'
+replacement = '\g<1>https://raw.githubusercontent.com/dgilford/tcpyPI/main/'
+
+# Markdown links [text](relative/path) -> absolute repo blob URLs; skip links that
+# are already absolute (http/https), in-page anchors (#), or mailto:.
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '\]\((?!https?://|#|mailto:)\.?/?([^)]+)\)'
+replacement = '](https://github.com/dgilford/tcpyPI/blob/main/\g<1>)'
+
+# Keep the sdist lean via an explicit allowlist. (An `exclude` list is NOT enough
+# here: hatchling treats the .gitignore `!data/*.nc` negations as force-includes
+# that override target excludes, which silently shipped ~12 MB of sample netCDF.)
+# README.md and LICENSE must be included: the fancy-pypi-readme metadata hook and
+# the license reference re-run when building a wheel from the sdist.
 [tool.hatch.build.targets.sdist]
-exclude = [
-  "/.github",
-  "/data",
-  "/dist",
-  "/figures",
-  "/matlab_scripts",
-  "/notebooks",
-  "/tests",
-  "/pyPI_Users_Guide_v1.3.pdf",
-  "/run_sample.py",
-] 
+only-include = [
+  "src",
+  "README.md",
+  "LICENSE",
+  "CITATION.cff",
+  "AGENTS.md",
+  "CLAUDE.md",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/tcpyPI"] 
 
 [tool.pytest.ini_options]
 addopts = ["--doctest-modules", "-v"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["notebooks", ".pixi", ".ipynb_checkpoints"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort (import ordering)
+    "UP",  # pyupgrade
+    "NPY", # numpy-specific rules
+]
+# E501: long lines in scientific docstrings/comments are fine (the formatter
+# handles code lines); E741: single-letter names (P, T, R, l...) are the
+# domain-standard meteorological notation used throughout.
+ignore = ["E501", "E741"]
+
+[tool.ruff.lint.per-file-ignores]
+# The package namespace is assembled by re-exports (including the historical
+# star imports); silence the unused/star-import rules there.
+"src/tcpyPI/__init__.py" = ["F401", "F403"]
+# run_sample.py deliberately inserts the local src/ checkout onto sys.path
+# before importing tcpyPI.
+"run_sample.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+follow_imports = "silent"
+warn_unused_ignores = true
+# The njit-compiled numerical kernels are intentionally untyped; type-checking
+# targets the pure-Python API surface.
+[[tool.mypy.overrides]]
+module = "tcpyPI.pi"
+ignore_errors = true
 
 
 # Pixi is used for managing Conda environments in the development of tcpyPI.
@@ -86,9 +146,9 @@ basic-tests = "python -m pytest -n auto --ignore run_sample.py --ignore tests/te
 xarray-tests = "python -m pytest -n auto tests/test_run_sample.py"
 
 [tool.pixi.feature.min-dependency-versions.dependencies]
-# Pinned to the declared support floor (requires-python >=3.10) so CI keeps the
+# Pinned to the declared support floor (requires-python >=3.11) so CI keeps the
 # minimum-version claim honest. Update in lockstep with the [project] dependencies.
-python = "3.10.*"
+python = "3.11.*"
 numba = "0.59.*"
 numpy = "1.26.*"
 
@@ -112,6 +172,23 @@ numpy = "*"
 download-era5 = { cmd = "python download_era5.py && python download_era5_sl.py", cwd = "data" }
 build-sample = "python data/build_sample_data_era5_oct2024.py"
 
+# Benchmark-only environment: adds Skyborn (compiled-Fortran PI backend, issue #86)
+# for the optional three-way comparison in notebooks/clock_pypi.ipynb. Not used by
+# the package or CI.
+[tool.pixi.feature.bench.pypi-dependencies]
+skyborn = "*"
+
+[tool.pixi.feature.lint.dependencies]
+ruff = "*"
+mypy = "*"
+python-build = "*"
+
+[tool.pixi.feature.lint.tasks]
+lint = "ruff check src tests run_sample.py data"
+format-check = "ruff format --check src tests run_sample.py data"
+format = "ruff format src tests run_sample.py data"
+typecheck = "mypy src/tcpyPI"
+
 [tool.pixi.target.osx-64.dependencies]
 # Workaround for duplicate LD_RPATH issue on MacOS 15.4
 # <https://github.com/prefix-dev/pixi/issues/3479>
@@ -128,6 +205,8 @@ libgfortran5 = ">=14"
 
 [tool.pixi.environments]
 default = {features = ["test", "xarray", "notebook", "data"], solve-group = "default"}
+bench = {features = ["test", "xarray", "notebook", "bench"], solve-group = "bench"}
+lint = {features = ["lint"], solve-group = "lint"}
 minimal = {features = [], solve-group = "default"}
 # CI test environments,
 test-latest = {features = ["test"], solve-group = "default"}

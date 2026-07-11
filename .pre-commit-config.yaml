@@ -1,0 +1,10 @@
+# Contributor convenience: `pip install pre-commit && pre-commit install`.
+# CI enforces the same checks via the `lint` job (ruff check + format + mypy).
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Keep close to the CI lint env's ruff so pre-commit and CI agree on formatting.
+    rev: v0.15.21
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format

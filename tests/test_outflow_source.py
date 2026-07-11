@@ -50,12 +50,8 @@ def _example_profile():
 def test_pi_outflow_source_cape_star_and_cape_env_smoke():
     SSTC, MSL, P, TC, R = _example_profile()
 
-    vmax1, pmin1, ifl1, t01, otl1 = tcpyPI.pi(
-        SSTC, MSL, P, TC, R, outflow_source="cape_star"
-    )
-    vmax2, pmin2, ifl2, t02, otl2 = tcpyPI.pi(
-        SSTC, MSL, P, TC, R, outflow_source="cape_env"
-    )
+    vmax1, pmin1, ifl1, t01, otl1 = tcpyPI.pi(SSTC, MSL, P, TC, R, outflow_source="cape_star")
+    vmax2, pmin2, ifl2, t02, otl2 = tcpyPI.pi(SSTC, MSL, P, TC, R, outflow_source="cape_env")
 
     assert ifl1 == 1
     assert ifl2 == 1
@@ -73,4 +69,3 @@ def test_pi_outflow_source_invalid_value_raises():
     SSTC, MSL, P, TC, R = _example_profile()
     with pytest.raises(ValueError):
         tcpyPI.pi(SSTC, MSL, P, TC, R, outflow_source="not_a_real_mode")
-

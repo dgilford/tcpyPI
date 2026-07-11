@@ -31,7 +31,7 @@ if ~isfolder(out_dir)
 end
 out_file = fullfile(out_dir, 'matlab_pi_reference_2024.nc');
 
-%% Load the pyPI sample (already in pyPI units: SST/T in C, MSL in hPa, q in g/kg)
+%% Load the pyPI sample (already in pyPI units: SST/T in C, MSL in hPa, r in g/kg)
 
 p     = ncread(in_file, 'p');       % [np]                 hPa
 lat   = ncread(in_file, 'lat');     % [nlat]               degrees north
@@ -40,7 +40,7 @@ month = ncread(in_file, 'month');   % [nmon]               month number (1-12)
 sst   = ncread(in_file, 'sst');     % [nlon,nlat,nmon]     C   (NaN over land)
 msl   = ncread(in_file, 'msl');     % [nlon,nlat,nmon]     hPa
 T     = ncread(in_file, 't');       % [nlon,nlat,np,nmon]  C
-q     = ncread(in_file, 'q');       % [nlon,nlat,np,nmon]  g/kg
+r     = ncread(in_file, 'r');       % [nlon,nlat,np,nmon]  g/kg (water-vapor mixing ratio)
 
 nlon = length(lon); nlat = length(lat); nmon = length(month);
 
@@ -60,7 +60,7 @@ for x = 1:nlon
             if (~isnan(sst(x, y, m)) && sst(x, y, m) > 0)
                 [PMIN(x, y, m), VMAX(x, y, m), TO(x, y, m), LNB(x, y, m), IFL(x, y, m)] = ...
                     pc_min(squeeze(sst(x, y, m)), squeeze(msl(x, y, m)), ...
-                           squeeze(p), squeeze(T(x, y, :, m)), squeeze(q(x, y, :, m)));
+                           squeeze(p), squeeze(T(x, y, :, m)), squeeze(r(x, y, :, m)));
             end
         end
     end
