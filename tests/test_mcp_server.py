@@ -135,6 +135,40 @@ def test_gpi_en04_requires_rh():
     assert out["parameter"] == "rh_mid_pct"
 
 
+def test_pdi_matches_direct_call():
+    vmax = [30.0, 45.0, 60.0, 50.0]
+    out = mcp_server.power_dissipation_index(vmax, 6.0, dt_units="h")
+    assert out["status"] == "success"
+    expected = float(tcpyPI.power_dissipation_index(np.array(vmax), 6.0, dt_units="h"))
+    assert out["pdi"] == pytest.approx(expected, rel=0, abs=0)
+    assert out["provenance"]["settings"]["wind_units"] == "m/s"
+
+
+def test_pdi_kt_units_are_declared_conversions():
+    vmax_kt = [60.0, 90.0, 120.0]
+    out_kt = mcp_server.power_dissipation_index(vmax_kt, 6.0, wind_units="kt", dt_units="h")
+    out_ms = mcp_server.power_dissipation_index(
+        [v * 0.5144444444444445 for v in vmax_kt], 6.0, dt_units="h"
+    )
+    assert out_kt["pdi"] == pytest.approx(out_ms["pdi"], rel=1e-12)
+
+
+def test_pdi_nan_policy_over_json_null():
+    vmax = [30.0, None, 60.0]
+    out = mcp_server.power_dissipation_index(vmax, 3600.0)
+    assert out["status"] == "success"
+    assert out["pdi"] is None  # propagate (default): missing sample -> null PDI
+
+    out2 = mcp_server.power_dissipation_index(vmax, 3600.0, nan_policy="omit")
+    assert out2["pdi"] > 0
+
+
+def test_pdi_invalid_units_is_structured_error():
+    out = mcp_server.power_dissipation_index([30.0], 6.0, wind_units="mph")
+    assert out["status"] == "error"
+    assert "wind_units" in out["message"]
+
+
 # ---------------------------------------------------------------------------
 # Grid tool (needs xarray)
 # ---------------------------------------------------------------------------
@@ -208,7 +242,7 @@ def test_compute_pi_grid_refuses_overwriting_input(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_create_server_registers_all_five_tools():
+def test_create_server_registers_all_tools():
     pytest.importorskip("fastmcp")
     import asyncio
 
@@ -220,4 +254,5 @@ def test_create_server_registers_all_five_tools():
         "decompose_pi",
         "ventilation_index",
         "genesis_potential_index",
+        "power_dissipation_index",
     }

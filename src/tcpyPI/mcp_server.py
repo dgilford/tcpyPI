@@ -1,12 +1,13 @@
 """tcpyPI MCP server: conversational access to validated potential-intensity code.
 
-Exposes five tools over the Model Context Protocol (stdio transport):
+Exposes six tools over the Model Context Protocol (stdio transport):
 
 1. ``compute_pi`` — single sounding -> VMAX, PMIN, IFL, TO, OTL.
 2. ``compute_pi_grid`` — netCDF path in -> netCDF path out + JSON summary.
 3. ``decompose_pi`` — Wing et al. (2015) log decomposition of PI.
 4. ``ventilation_index`` — Tang & Emanuel (2012) ventilation index.
 5. ``genesis_potential_index`` — GPI (Emanuel & Nolan 2004 or Emanuel 2010).
+6. ``power_dissipation_index`` — Emanuel (2005) PDI from an intensity series.
 
 Design contract (see AGENTS.md): the server is I/O and validation only — every
 number comes from the tested `tcpyPI` functions. Units are explicit and never
@@ -32,6 +33,7 @@ import numpy as np
 
 from . import numba as _numba_shim
 from .gpi import genesis_potential_index as _genesis_potential_index
+from .pdi import power_dissipation_index as _power_dissipation_index
 from .pi import pi as _pi
 from .pi import pi_log_decomposition as _pi_log_decomposition
 from .vi import ventilation_index as _ventilation_index
@@ -445,12 +447,55 @@ def genesis_potential_index(
     }
 
 
+def power_dissipation_index(
+    vmax: list[float | None],
+    dt: float | list[float | None],
+    formulation: str = "e05_si",
+    wind_units: str = "m/s",
+    dt_units: str = "s",
+    nan_policy: str = "propagate",
+) -> dict:
+    """Emanuel (2005) Power Dissipation Index from a storm intensity time series.
+
+    PDI = sum(vmax^3 * dt) over the track. Inputs: vmax (maximum sustained
+    wind time series) and dt (time step; scalar, or an array matching vmax).
+    Units are declared explicitly and never guessed: wind_units is "m/s" or
+    "kt" (IBTrACS reports kt), dt_units is "s" or "h"; the declared conversion
+    is applied by tcpyPI itself. formulation "e05_si" returns SI units
+    (m^3/s^2); "e05_1e11" divides by 1e11 (common plotting scale). Missing
+    samples are JSON null: nan_policy "propagate" (default) yields a null PDI
+    if any sample is missing, "omit" drops missing contributions.
+    """
+    try:
+        val = _power_dissipation_index(
+            _array_in(vmax),
+            _array_in(dt) if isinstance(dt, (list, tuple)) else _scalar_in(dt),
+            formulation=formulation,
+            wind_units=wind_units,
+            dt_units=dt_units,
+            nan_policy=nan_policy,
+        )
+    except Exception as exc:
+        return _error(f"power_dissipation_index() failed: {exc!r}")
+    return {
+        "status": "success",
+        "pdi": _nums(val),
+        "provenance": _provenance(
+            formulation=formulation,
+            wind_units=wind_units,
+            dt_units=dt_units,
+            nan_policy=nan_policy,
+        ),
+    }
+
+
 _TOOLS = (
     compute_pi,
     compute_pi_grid,
     decompose_pi,
     ventilation_index,
     genesis_potential_index,
+    power_dissipation_index,
 )
 
 
@@ -462,8 +507,9 @@ def create_server():
         "tcpyPI",
         instructions=(
             "Validated tropical cyclone potential intensity (Bister & Emanuel 2002) "
-            "and genesis diagnostics from the tcpyPI package. Units are fixed and "
-            "never converted; only results with ifl == 1 are trustworthy."
+            "and genesis/dissipation diagnostics from the tcpyPI package. Units are "
+            "explicit and never converted silently; only results with ifl == 1 are "
+            "trustworthy."
         ),
     )
     for tool in _TOOLS:
