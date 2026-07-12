@@ -12,7 +12,7 @@ from .constants import *
 # Genesis Potential Index (GPI)
 from .gpi import genesis_potential_index, gpi, gpi_log_decomposition
 
-# Power Dissipation Index (PDI) (EXPERIMENTAL)
+# Power Dissipation Index (PDI)
 from .pdi import pdi, power_dissipation_index
 from .pi import *
 

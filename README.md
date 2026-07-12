@@ -35,7 +35,7 @@ and
 Please read [pyPI_Users_Guide_v1.3.pdf](pyPI_Users_Guide_v1.3.pdf) for a full overview and details on pyPI.
 The description includes the pyPI background, a PI computation derivation, validation against the commonly-used MATLAB algorithm (pcmin), and a set of sample analyses.
 
-> **Note:** the User's Guide documents v1.3 and predates the newer options and diagnostics (`outflow_source`, the log-decomposition API, and the ventilation and genesis-potential indices, and the experimental power-dissipation and relative-intensity utilities). For those, see the sections below and the demo notebooks.
+> **Note:** the User's Guide documents v1.3 and predates the newer options and diagnostics (`outflow_source`, the log-decomposition API, and the ventilation, genesis-potential, power-dissipation, and relative-intensity utilities). For those, see the sections below and the demo notebooks.
 
 ## Getting Started
 
@@ -190,9 +190,9 @@ Key options:
 
 See `notebooks/ventilation_index_demo.ipynb` for a step-by-step worked example and visualization.
 
-### Power Dissipation Index (PDI) (EXPERIMENTAL)
+### Power Dissipation Index (PDI)
 
-tcpyPI includes an **experimental** Power Dissipation Index (PDI) utility for storm-track time series:
+tcpyPI includes a Power Dissipation Index (PDI) utility for storm-track time series:
 
 Equations (Emanuel 2005):
 
@@ -321,16 +321,16 @@ Five tools are exposed: `compute_pi` (single sounding), `compute_pi_grid` (netCD
 * **[sample_output_analyses.ipynb](./notebooks/sample_output_analyses.ipynb)** - North Atlantic 2024 seasonal analysis: PI, efficiency/disequilibrium, GPI, and ventilation index, each with a log-decomposition
 * **[efficiency_demo.ipynb](./notebooks/efficiency_demo.ipynb)** - The tropical-cyclone (Carnot) efficiency term $(T_s-T_0)/T_0$ from BE02: what it represents and its sensitivity to SST and outflow temperature
 * **[dissipative_heating_effect.ipynb](./notebooks/dissipative_heating_effect.ipynb)** - Compares PI with and without dissipative heating (`diss_flag`); reproduces the ~20–25% intensification noted by Bister & Emanuel (1998)
-* **[ventilation_index_demo.ipynb](./notebooks/ventilation_index_demo.ipynb)** - Experimental TE12 ventilation index: end-to-end calculation and diagnostics
-* **[power_dissipation_index_demo.ipynb](./notebooks/power_dissipation_index_demo.ipynb)** - Experimental PDI: computed from observed IBTrACS intensity for Hurricane Milton (2024)
-* **[genesis_potential_index_demo.ipynb](./notebooks/genesis_potential_index_demo.ipynb)** - Experimental GPI (`en04` and Emanuel-2010 `e10`): worked example and sensitivities
+* **[ventilation_index_demo.ipynb](./notebooks/ventilation_index_demo.ipynb)** - TE12 ventilation index: end-to-end calculation and diagnostics
+* **[power_dissipation_index_demo.ipynb](./notebooks/power_dissipation_index_demo.ipynb)** - PDI: computed from observed IBTrACS intensity for Hurricane Milton (2024)
+* **[genesis_potential_index_demo.ipynb](./notebooks/genesis_potential_index_demo.ipynb)** - GPI (`en04` and Emanuel-2010 `e10`): worked example and sensitivities
 
 #### Misc.
 * **[utilities.py](./src/tcpyPI/utilities.py)** - Set of functions used in the pyPI codebase
 * **[constants.py](./src/tcpyPI/constants.py)** - Set of meteorological constants used in the pyPI codebase
-* **[vi.py](./src/tcpyPI/vi.py)** - Experimental TE12 ventilation index and entropy deficit utilities
-* **[pdi.py](./src/tcpyPI/pdi.py)** - Experimental power dissipation index utility
-* **[gpi.py](./src/tcpyPI/gpi.py)** - Experimental genesis potential index utility
+* **[vi.py](./src/tcpyPI/vi.py)** - TE12 ventilation index and entropy deficit utilities
+* **[pdi.py](./src/tcpyPI/pdi.py)** - Power dissipation index utility
+* **[gpi.py](./src/tcpyPI/gpi.py)** - Genesis potential index utility
 * **[reference_calculations.m](./matlab_scripts/reference_calculations.m)** - Reads `data/sample_data.nc` and generates BE02 MATLAB (pc_min) reference outputs used by verify_pi.ipynb
 * **[pc_min.m](./matlab_scripts/pc_min.m)** - Original BE02 algorithm from MATLAB, adapted and used to produce analyses of Gilford et al. ([2017](https://journals.ametsoc.org/doi/abs/10.1175/JCLI-D-16-0827.1); [2019](https://journals.ametsoc.org/doi/10.1175/MWR-D-19-0021.1))
 * **[clock_pypi.ipynb](./notebooks/clock_pypi.ipynb)** - Notebook estimating the time it takes to run pyPI on a laptop
