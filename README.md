@@ -345,6 +345,8 @@ Six tools are exposed: `compute_pi` (single sounding), `compute_pi_grid` (netCDF
 
 ## Development & AI transparency
 
+tcpyPI v2.0 was developed in part with Claude Code and carefully vetted by me. Any errors or oversights are my own.
+
 Recent maintenance of tcpyPI (v1.4.x) has been **AI-assisted** (with Claude Code) for code review, refactoring, documentation, and test scaffolding. Every change is **human-reviewed and hand-edited by the author** and is guarded by the automated test suite: the `pi()` doctests pin scalar outputs to ~13 significant figures, and `tests/test_run_sample.py` pins the gridded sample outputs at `rtol=1e-13`. AI assistance is used as a productivity tool — the science, defaults, and interfaces remain the author's.
 
 ## License
