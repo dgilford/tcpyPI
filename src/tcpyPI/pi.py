@@ -311,9 +311,17 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
     #   ***   Define the vertically accumulated CAPE (from jmin --> INB) ***
     #
         RUNNING_CAPE_J = np.cumsum(CAPE_J)
-        max_RUNNING_CAPE_INB = np.argmax(RUNNING_CAPE_J)
-        INB = max_RUNNING_CAPE_INB
-        
+        INB = np.argmax(RUNNING_CAPE_J)
+        # The argmax can land on a level with TVRDIF[INB] <= 0: the trapezoid
+        # into INB nets positive whenever TVRDIF[INB-1] > |TVRDIF[INB]|.  The
+        # residual-area formulas below assume TVRDIF[INB] > 0 > TVRDIF[INB+1];
+        # with two same-sign values PINB extrapolates OUTSIDE its interval
+        # (wrong LNB/TOB, spurious PAT).  Back up one level: the zero crossing
+        # then lies in (INB, INB+1), and TVRDIF[INB] > 0 is guaranteed there,
+        # since otherwise the running CAPE could not have peaked above it.
+        if (TVRDIF[INB] <= 0.0) and (INB > jmin):
+            INB = INB - 1
+
     #
     #   ***   Find residual positive area above INB and TO  ***
     #         and finalize estimate of LNB and its temperature
@@ -321,16 +329,18 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
         PAT=0.0
         TOB=T[INB]
         LNB=P[INB]
-        if (INB < nlvl-1):
+        # the interpolated-crossing formulas are only meaningful when the
+        # buoyancy actually changes sign between INB and INB+1
+        if (INB < nlvl-1) and (TVRDIF[INB] > 0.0):
             PINB=(P[INB+1]*TVRDIF[INB]-P[INB]*TVRDIF[INB+1])/(TVRDIF[INB]-TVRDIF[INB+1])
             LNB=PINB
             PAT=constants.RD*TVRDIF[INB]*(P[INB]-PINB)/(P[INB]+PINB)
             TOB=(T[INB]*(PINB-P[INB+1])+T[INB+1]*(P[INB]-PINB))/(P[INB]-P[INB+1])
-    
+
     #
     #   ***   Find CAPE  ***
-    #            
-        CAPED=RUNNING_CAPE_J[max_RUNNING_CAPE_INB]+PAT
+    #
+        CAPED=RUNNING_CAPE_J[INB]+PAT
         CAPED=max([CAPED,0.0])
         # set the flag to OK if procedure reached this point
         IFLAG=1
