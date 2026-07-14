@@ -311,16 +311,31 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
     #   ***   Define the vertically accumulated CAPE (from jmin --> INB) ***
     #
         RUNNING_CAPE_J = np.cumsum(CAPE_J)
-        INB = np.argmax(RUNNING_CAPE_J)
-        # The argmax can land on a level with TVRDIF[INB] <= 0: the trapezoid
-        # into INB nets positive whenever TVRDIF[INB-1] > |TVRDIF[INB]|.  The
-        # residual-area formulas below assume TVRDIF[INB] > 0 > TVRDIF[INB+1];
-        # with two same-sign values PINB extrapolates OUTSIDE its interval
-        # (wrong LNB/TOB, spurious PAT).  Back up one level: the zero crossing
-        # then lies in (INB, INB+1), and TVRDIF[INB] > 0 is guaranteed there,
-        # since otherwise the running CAPE could not have peaked above it.
-        if (TVRDIF[INB] <= 0.0) and (INB > jmin):
-            INB = INB - 1
+
+    #
+    #   ***   Select the outflow level maximizing the work integral   ***
+    #
+        # The continuous running work integral peaks at buoyancy zero
+        # crossings, which lie BETWEEN grid levels.  Rank each candidate
+        # level by the work at the interpolated crossing above it (the level
+        # value plus its residual partial area), not by the level value
+        # alone: two buoyant layers whose level values are within a
+        # partial-area of each other would otherwise be mis-ranked, leaving
+        # a small residual discontinuity in CAPED.  Levels with
+        # TVRDIF <= 0 carry no partial area and are strictly dominated by
+        # the crossing candidate of the buoyant layer below them, so the
+        # selected INB always admits the crossing formulas below.
+        INB_top = INB
+        INB = jmin
+        CAPE_BEST = -np.inf
+        for j in range(jmin, INB_top+1, 1):
+            PAT_j = 0.0
+            if (j < nlvl-1) and (TVRDIF[j] > 0.0) and (TVRDIF[j+1] <= 0.0):
+                PINB_j=(P[j+1]*TVRDIF[j]-P[j]*TVRDIF[j+1])/(TVRDIF[j]-TVRDIF[j+1])
+                PAT_j=constants.RD*TVRDIF[j]*(P[j]-PINB_j)/(P[j]+PINB_j)
+            if RUNNING_CAPE_J[j] + PAT_j > CAPE_BEST:
+                CAPE_BEST = RUNNING_CAPE_J[j] + PAT_j
+                INB = j
 
     #
     #   ***   Find residual positive area above INB and TO  ***
