@@ -44,6 +44,20 @@ Revision History:
     - Moved the PI log-decomposition into this module as `pi_log_decomposition` (from the former analyses.py) and removed the redundant run-and-decompose wrapper, matching the `vi_log_decomposition`/`gpi_log_decomposition` APIs.
     - Initialized the output flag before the environmental-CAPE call (as in pcmin.m) so a flag tripped by that call is no longer overwritten (GitHub issue #78).
     - Added a period-2 oscillation rescue to the minimum-pressure iteration: marginal near-neutral soundings whose fixed-point map locks into a 2-cycle (previously non-convergent, IFL=2) are collapsed to the cycle midpoint and converge (IFL=1). Previously-converging profiles are unchanged bit-for-bit.
+  Revised 7/13/2026 by B. Mares (CAPE as maximum buoyancy work; GitHub issue #77):
+    - `cape()` now defines CAPE as the maximum of the running signed buoyancy-work
+      integral over candidate outflow levels (max-W), and the LNB as the level
+      attaining it, instead of pcmin.m's integrate-to-the-highest-positive-level
+      rule. The legacy rule is a discontinuous function of the inputs (a marginal
+      buoyancy sign flicker aloft toggles the intervening negative area, jumping
+      CAPE by O(100 J/kg)); the maximum is continuous, coincides with the legacy
+      value on single-crossing profiles, and guarantees the pressure iteration a
+      fixed point. Deliberately NOT bit-identical to pcmin.m: results change
+      materially only on marginal multi-layer profiles (1.9% of the 2024 sample,
+      no flag changes). Full analysis and validation: discontinuity_analysis/.
+    - Removed the period-2 oscillation rescue: with a continuous pressure map the
+      2-cycles it patched over no longer occur (both historical failing soundings
+      now converge in a handful of iterations through the normal path).
 """
 # doctest: +ELLIPSIS
 
@@ -110,11 +124,18 @@ def cape(TP, RP, PP, T, R, P, ascent_flag=0, ptop=50, miss_handle=1):
         ``(CAPED, TOB, LNB, IFLAG)`` where:
 
         - CAPED : float
-            Convective available potential energy (J/kg).
+            Convective available potential energy (J/kg): the maximum of the
+            running signed buoyancy-work integral over candidate outflow
+            levels (grid levels and interpolated buoyancy zero-crossings).
+            Non-negative by construction (the launch level, with zero work,
+            is always a candidate).
         - TOB : float
             Temperature at level of neutral buoyancy (K).
         - LNB : float
-            Level of neutral buoyancy pressure (hPa).
+            Level of neutral buoyancy pressure (hPa): the level attaining the
+            work maximum (an interpolated buoyancy zero-crossing, or a grid
+            level at the retained-profile top). ``0`` when no positive work
+            is available.
         - IFLAG : int
             Status flag:
 
@@ -267,76 +288,73 @@ def cape(TP, RP, PP, T, R, P, ascent_flag=0, ptop=50, miss_handle=1):
             TVRDIF[j,] = TLVR - TENV
 
     #
-    #  ***  Begin loop to find Positive areas (PA) and Negative areas (NA) ***
-    #                  ***  and CAPE from reversible ascent ***
-    NA = 0.0
-    PA = 0.0
-
+    #  ***  CAPE as maximum buoyancy work (max-W)  ***
     #
-    #   ***  Find maximum level of positive buoyancy, INB    ***
+    # Accumulate the running signed work integral W(p_t) of the
+    # piecewise-linear buoyancy profile (the same trapezoid increments and
+    # interpolated zero-crossing partial areas as pcmin.m), and take CAPE as
+    # its maximum over candidate outflow levels p_t: every grid level above
+    # the parcel, plus every interpolated sign crossing of the buoyancy.
     #
-    INB = 0
-    for j in range(nlvl - 1, jmin, -1):
-        if TVRDIF[j] > 0:
-            INB = max(INB, j)
+    # This replaces pcmin.m's terminal-point rule (integrate to the HIGHEST
+    # grid level with positive buoyancy, clamp the signed result at zero),
+    # which is a discontinuous function of the inputs: an arbitrarily small
+    # buoyancy sign change at a marginal level aloft drags the intervening
+    # negative area in or out of the integral all at once, producing finite
+    # CAPE jumps, a discontinuous pressure map, and the period-2 solver
+    # failures of GitHub issue #77. The maximum is continuous in the inputs
+    # (Berge's maximum theorem) even when the maximizing level changes, and
+    # is identical to the pcmin.m value for single-crossing buoyancy
+    # profiles -- the overwhelmingly common case. See
+    # discontinuity_analysis/ for the full derivation and validation.
+    #
+    # The launch level (zero accumulated work) is always a candidate, so
+    # CAPED >= 0 with no final clamp.
 
-    # CHECK: Is the LNB higher than the surface? If not, return zero CAPE
-    if INB == 0:
+    # signed work from the parcel pressure PP to the first retained level
+    W = constants.RD * (PP - P[jmin]) / (PP + P[jmin]) * TVRDIF[jmin]
+    BESTW = 0.0
+    BESTP = 0.0
+    BESTT = T[0]
+    if W > BESTW:
+        BESTW = W
+        BESTP = P[jmin]
+        BESTT = T[jmin]
+    for j in range(jmin + 1, nlvl, 1):
+        B0 = TVRDIF[j - 1]
+        B1 = TVRDIF[j]
+        if B0 * B1 < 0.0:
+            # candidate: interpolated buoyancy zero-crossing between the
+            # levels (the same PINB/partial-area formulas as pcmin.m)
+            PC = (P[j] * B0 - P[j - 1] * B1) / (B0 - B1)
+            WC = W + constants.RD * B0 * (P[j - 1] - PC) / (P[j - 1] + PC)
+            if WC > BESTW:
+                BESTW = WC
+                BESTP = PC
+                BESTT = (T[j - 1] * (PC - P[j]) + T[j] * (P[j - 1] - PC)) / (P[j - 1] - P[j])
+        # candidate: the grid level itself (relevant at the retained-profile
+        # top, where buoyancy may still be positive)
+        W = W + constants.RD * (B1 + B0) * (P[j - 1] - P[j]) / (P[j] + P[j - 1])
+        if W > BESTW:
+            BESTW = W
+            BESTP = P[j]
+            BESTT = T[j]
+
+    # CHECK: Is any positive work available? If not, return zero CAPE
+    # (mirrors the historical INB==0 return: LNB=0, TOB=T[0])
+    if BESTW <= 0.0:
         CAPED = 0
         TOB = T[0]
-        LNB = P[INB]
-        #         TOB=np.nan
         LNB = 0
-        # Return the unconverged values
         return (CAPED, TOB, LNB, IFLAG)
 
-    # if check is passed, continue with the CAPE calculation
-    else:
-        #
-        #   ***  Find positive and negative areas and CAPE  ***
-        #                  via E94, EQN. 6.3.6)
-        #
-        for j in range(jmin + 1, INB + 1, 1):
-            PFAC = (
-                constants.RD * (TVRDIF[j] + TVRDIF[j - 1]) * (P[j - 1] - P[j]) / (P[j] + P[j - 1])
-            )
-            PA = PA + max(PFAC, 0.0)
-            NA = NA - min(PFAC, 0.0)
-
-        #
-        #   ***   Find area between parcel pressure and first level above it ***
-        #
-        PMA = PP + P[jmin]
-        PFAC = constants.RD * (PP - P[jmin]) / PMA
-        PA = PA + PFAC * max(TVRDIF[jmin], 0.0)
-        NA = NA - PFAC * min(TVRDIF[jmin], 0.0)
-
-        #
-        #   ***   Find residual positive area above INB and TO  ***
-        #         and finalize estimate of LNB and its temperature
-        #
-        PAT = 0.0
-        TOB = T[INB]
-        LNB = P[INB]
-        if INB < nlvl - 1:
-            PINB = (P[INB + 1] * TVRDIF[INB] - P[INB] * TVRDIF[INB + 1]) / (
-                TVRDIF[INB] - TVRDIF[INB + 1]
-            )
-            LNB = PINB
-            PAT = constants.RD * TVRDIF[INB] * (P[INB] - PINB) / (P[INB] + PINB)
-            TOB = (T[INB] * (PINB - P[INB + 1]) + T[INB + 1] * (P[INB] - PINB)) / (
-                P[INB] - P[INB + 1]
-            )
-
-        #
-        #   ***   Find CAPE  ***
-        #
-        CAPED = PA + PAT - NA
-        CAPED = max(CAPED, 0.0)
-        # set the flag to OK if procedure reached this point
-        IFLAG = 1
-        # Return the calculated outputs to the above program level
-        return (CAPED, TOB, LNB, IFLAG)
+    CAPED = BESTW
+    TOB = BESTT
+    LNB = BESTP
+    # set the flag to OK if procedure reached this point
+    IFLAG = 1
+    # Return the calculated outputs to the above program level
+    return (CAPED, TOB, LNB, IFLAG)
 
 
 @njit()
@@ -623,22 +641,6 @@ def _pi_numba(
         PNEW = MSL * np.exp(-CAT / (constants.RD * TVAV))
 
         #
-        #   ***  Rescue persistent period-2 oscillations  ***
-        #
-        # At this point PM is the current iterate x_n and PMOLD is x_(n-1), i.e.
-        # the state two iterations back relative to PNEW = x_(n+1). For marginal
-        # (near-zero environmental CAPE) soundings the fixed-point map can lock
-        # into a period-2 cycle whose amplitude exceeds the 0.5 hPa tolerance,
-        # which in BE02/pcmin.m runs to the iteration cap and returns missing.
-        # When PNEW returns to within eps of x_(n-1) while the step is still
-        # super-tolerance, collapse to the cycle midpoint and continue; the loop
-        # then exits through the normal convergence path (IFL=1). Convergent
-        # trajectories exit within ~10 iterations and never reach this branch,
-        # so all previously-converging results are unchanged bit-for-bit.
-        if (NP >= 10) and (np.abs(PNEW - PMOLD) < 1e-5) and (np.abs(PNEW - PM) > 0.5):
-            PNEW = 0.5 * (PNEW + PM)
-
-        #
         #   ***  Test for convergence (setup for possible next while iteration)  ***
         #
         # store the previous step's pressure
@@ -807,14 +809,12 @@ def pi(
 
             Notes on flag semantics:
 
-            - For marginal (near-zero CAPE) soundings whose pressure iteration
-              locks into a persistent period-2 oscillation, the solver collapses
-              the cycle to its midpoint and converges (``IFL=1``) when the cycle
-              amplitude is at most ~1 hPa (twice the convergence tolerance) —
-              which covers the observed marginal cases. Larger-amplitude cycles
-              fail safe and still return ``IFL=2``. This is a documented,
-              deliberate improvement over pcmin.m, which returns missing for all
-              such soundings.
+            - With CAPE defined as the maximum buoyancy work (see `cape`), the
+              pressure iteration's map is continuous and marginal near-neutral
+              soundings that previously locked into period-2 oscillations
+              (returning ``IFL=2``; GitHub issue #77) now converge normally
+              (``IFL=1``). This is a documented, deliberate improvement over
+              pcmin.m, which returns missing for such soundings.
             - A flag tripped by the *environmental*-CAPE calculation persists
               (see GitHub issue #78), so ``IFL=0`` or ``IFL=3`` can accompany
               finite ``VMAX``/``PMIN`` on an otherwise-converged column (e.g. a
@@ -824,7 +824,9 @@ def pi(
         - TO : float
             Outflow temperature (K).
         - OTL : float
-            Outflow temperature level (hPa), defined as the level of neutral buoyancy.
+            Outflow temperature level (hPa): the level of neutral buoyancy of
+            the saturated parcel, defined as the level attaining the maximum
+            buoyancy work (see `cape`).
 
     Examples
     --------
