@@ -265,7 +265,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
     PA=0.0
     
     #
-    #   ***  Find maximum level of positive buoyancy, INB    ***
+    #   ***  Find maximum discretized level of positive buoyancy, INB    ***
     #
     INB=0
     for j in range(nlvl-1, jmin, -1):
@@ -289,10 +289,14 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
     #   ***  Find positive and negative areas and CAPE  ***
     #                  via E94, EQN. 6.3.6)
     #
+        CAPE_J = np.zeros((nlvl,))
         for j in range(jmin+1, INB+1, 1):
             PFAC=constants.RD*(TVRDIF[j]+TVRDIF[j-1])*(P[j-1]-P[j])/(P[j]+P[j-1])
-            PA=PA+max([PFAC,0.0])
-            NA=NA-min([PFAC,0.0])
+            PA_j=max([PFAC,0.0])
+            PA=PA+PA_j
+            NA_j=-min([PFAC,0.0])
+            NA=NA+NA_j
+            CAPE_J[j] = PA_j - NA_j
 
     #
     #   ***   Find area between parcel pressure and first level above it ***
@@ -301,6 +305,14 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
         PFAC=constants.RD*(PP-P[jmin])/PMA
         PA=PA+PFAC*max([TVRDIF[jmin],0.0])
         NA=NA-PFAC*min([TVRDIF[jmin],0.0])
+        CAPE_J[jmin] = PFAC*max([TVRDIF[jmin],0.0]) - PFAC*min([TVRDIF[jmin],0.0])
+
+    #
+    #   ***   Define the vertically accumulated CAPE (from jmin --> INB) ***
+    #
+        RUNNING_CAPE_J = np.cumsum(CAPE_J)
+        max_RUNNING_CAPE_INB = np.argmax(RUNNING_CAPE_J)
+        INB = max_RUNNING_CAPE_INB
         
     #
     #   ***   Find residual positive area above INB and TO  ***
@@ -318,7 +330,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
     #
     #   ***   Find CAPE  ***
     #            
-        CAPED=PA+PAT-NA
+        CAPED=RUNNING_CAPE_J[max_RUNNING_CAPE_INB]+PAT
         CAPED=max([CAPED,0.0])
         # set the flag to OK if procedure reached this point
         IFLAG=1
