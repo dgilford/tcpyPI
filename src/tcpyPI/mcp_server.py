@@ -18,6 +18,13 @@ contract: flags tripped by the environmental-CAPE call persist, so ``ifl`` of
 0 or 3 can accompany finite outputs — ``ifl == 1`` is the only
 trustworthy-output gate.
 
+The grid tool's file access is guarded: it refuses to overwrite an existing
+output unless ``overwrite=True`` and, when the ``TCPYPI_MCP_ROOT`` environment
+variable is set, confines every read and write to that directory (symlinks
+resolved, ``..`` traversal blocked). Errors returned over the protocol are
+sanitized — exception types and bounded messages, never absolute paths or
+backend internals.
+
 Run with ``tcpypi-mcp`` (requires ``pip install tcpypi[mcp]``). The module
 imports without fastmcp/xarray installed; the server entry point and the grid
 tool then raise informative errors.
@@ -115,6 +122,54 @@ def _error(message, **extra):
     return {"status": "error", "message": message, **extra}
 
 
+def _exc_summary(exc, max_len=200):
+    """Bounded, path-light exception summary safe to return over the protocol.
+
+    Surfaces the exception type and a length-capped message instead of
+    ``repr(exc)``, which for I/O and backend errors embeds absolute local paths
+    and library internals. The cap keeps a large traceback/backend dump from
+    flooding the caller's context.
+    """
+    text = str(exc).strip()
+    if len(text) > max_len:
+        text = text[: max_len - 1] + "…"
+    return f"{type(exc).__name__}: {text}" if text else type(exc).__name__
+
+
+def _mcp_root():
+    """Optional sandbox root for the grid tool's file access.
+
+    If ``TCPYPI_MCP_ROOT`` is set, every path the grid tool reads or writes must
+    resolve inside that directory (symlinks resolved, ``..`` traversal blocked).
+    Unset (the default) means no confinement — appropriate for a local
+    single-user server, but should be set when the server is exposed to
+    untrusted callers.
+    """
+    root = os.environ.get("TCPYPI_MCP_ROOT")
+    return os.path.realpath(root) if root else None
+
+
+def _resolve_path(path):
+    """Realpath of `path`, resolving symlinks; safe for not-yet-existing files.
+
+    An existing path is resolved directly; for a path whose leaf does not exist
+    yet (the output file), the parent directory is resolved and the basename
+    appended, so a symlinked-out parent is still caught by the root check.
+    """
+    if os.path.exists(path):
+        return os.path.realpath(path)
+    parent = os.path.realpath(os.path.dirname(path) or ".")
+    return os.path.join(parent, os.path.basename(path))
+
+
+def _within_root(resolved, root):
+    """True if `resolved` is `root` or lies inside it."""
+    try:
+        return os.path.commonpath([resolved, root]) == root
+    except ValueError:  # different drives / mixed abs-rel (Windows)
+        return False
+
+
 def _num(x):
     """One float, JSON-safe: NaN/inf become None."""
     x = float(x)
@@ -195,7 +250,7 @@ def compute_pi(
             outflow_source=outflow_source,
         )
     except Exception as exc:
-        return _error(f"pi() failed: {exc!r}")
+        return _error(f"pi() failed: {_exc_summary(exc)}")
     ifl = int(ifl)
     return {
         "status": "success",
@@ -246,6 +301,7 @@ def compute_pi_grid(
     ptop: float = 50.0,
     miss_handle: int = 1,
     outflow_source: str = "cape_star",
+    overwrite: bool = False,
 ) -> dict:
     """Compute potential intensity over a gridded netCDF file (whole-field, compiled).
 
@@ -256,6 +312,12 @@ def compute_pi_grid(
     r (mixing ratio, g/kg) with vertical pressure coordinate `dim` (hPa), and
     each must carry a matching netCDF `units` attribute: mismatched or missing
     units are rejected with an error, never converted silently.
+
+    File access is guarded. An existing output_nc is never clobbered unless
+    overwrite=True, and when the TCPYPI_MCP_ROOT environment variable is set
+    both paths must resolve inside that directory (symlinks resolved, `..`
+    traversal blocked) or the call is refused. Set TCPYPI_MCP_ROOT when the
+    server is reachable by untrusted callers.
 
     The summary reports the IFL flag histogram; only ifl == 1 columns are
     trustworthy (flags from the environmental-CAPE call persist, so other
@@ -270,15 +332,35 @@ def compute_pi_grid(
             "compute_pi_grid requires xarray/h5netcdf; install with `pip install tcpypi[mcp]`"
         )
 
-    if not os.path.exists(input_nc):
+    in_path = _resolve_path(input_nc)
+    out_path = _resolve_path(output_nc)
+
+    root = _mcp_root()
+    if root is not None:
+        for label, resolved in (("input_nc", in_path), ("output_nc", out_path)):
+            if not _within_root(resolved, root):
+                return _error(
+                    f"{label} resolves outside TCPYPI_MCP_ROOT; access denied",
+                    parameter=label,
+                )
+
+    if not os.path.exists(in_path):
         return _error(f"input file not found: {input_nc}", parameter="input_nc")
-    if os.path.abspath(input_nc) == os.path.abspath(output_nc):
+    if in_path == out_path:
         return _error("output_nc must differ from input_nc", parameter="output_nc")
+    if os.path.exists(out_path) and not overwrite:
+        return _error(
+            f"output_nc already exists: {output_nc}; pass overwrite=true to replace it",
+            parameter="output_nc",
+        )
 
     try:
-        ds = xr.open_dataset(input_nc)
+        ds = xr.open_dataset(in_path)
     except Exception as exc:
-        return _error(f"could not open {input_nc}: {exc!r}", parameter="input_nc")
+        return _error(
+            f"could not open input_nc as netCDF ({type(exc).__name__})",
+            parameter="input_nc",
+        )
 
     try:
         missing = [v for v in ("sst", "msl", "t", "r") if v not in ds] + (
@@ -312,12 +394,15 @@ def compute_pi_grid(
         try:
             out = pi_dataset(ds, dim=dim, **knobs)
         except Exception as exc:
-            return _error(f"PI calculation failed: {exc!r}")
+            return _error(f"PI calculation failed: {_exc_summary(exc)}")
 
         try:
-            out.to_netcdf(output_nc)
+            out.to_netcdf(out_path)
         except Exception as exc:
-            return _error(f"could not write {output_nc}: {exc!r}", parameter="output_nc")
+            return _error(
+                f"could not write output_nc ({type(exc).__name__})",
+                parameter="output_nc",
+            )
 
         ifl = np.asarray(out.ifl)
         ifl_hist = {str(k): int((ifl == k).sum()) for k in np.unique(ifl[np.isfinite(ifl)])}
@@ -366,7 +451,7 @@ def decompose_pi(
             sst_units="C",
         )
     except Exception as exc:
-        return _error(f"pi_log_decomposition() failed: {exc!r}")
+        return _error(f"pi_log_decomposition() failed: {_exc_summary(exc)}")
     return {
         "status": "success",
         "lnpi": _nums(lnpi),
@@ -401,7 +486,7 @@ def ventilation_index(
             formulation=formulation,
         )
     except Exception as exc:
-        return _error(f"ventilation_index() failed: {exc!r}")
+        return _error(f"ventilation_index() failed: {_exc_summary(exc)}")
     return {
         "status": "success",
         "ventilation_index": _nums(vi),
@@ -439,7 +524,7 @@ def genesis_potential_index(
             chi=None if chi is None else np.asarray(chi, dtype=float),
         )
     except Exception as exc:
-        return _error(f"genesis_potential_index() failed: {exc!r}")
+        return _error(f"genesis_potential_index() failed: {_exc_summary(exc)}")
     return {
         "status": "success",
         "gpi": _nums(gpi),
@@ -476,7 +561,7 @@ def power_dissipation_index(
             nan_policy=nan_policy,
         )
     except Exception as exc:
-        return _error(f"power_dissipation_index() failed: {exc!r}")
+        return _error(f"power_dissipation_index() failed: {_exc_summary(exc)}")
     return {
         "status": "success",
         "pdi": _nums(val),

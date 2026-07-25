@@ -237,6 +237,77 @@ def test_compute_pi_grid_refuses_overwriting_input(tmp_path):
     assert out["parameter"] == "output_nc"
 
 
+def test_compute_pi_grid_refuses_existing_output_without_overwrite(tmp_path):
+    pytest.importorskip("xarray")
+    out_file = str(tmp_path / "pi_out.nc")
+
+    first = mcp_server.compute_pi_grid(DATA_FILE, out_file)
+    assert first["status"] == "success", first
+
+    # a second call must not silently clobber the existing output
+    again = mcp_server.compute_pi_grid(DATA_FILE, out_file)
+    assert again["status"] == "error"
+    assert again["parameter"] == "output_nc"
+    assert "already exists" in again["message"]
+
+
+def test_compute_pi_grid_overwrite_true_replaces_existing(tmp_path):
+    pytest.importorskip("xarray")
+    out_file = str(tmp_path / "pi_out.nc")
+
+    assert mcp_server.compute_pi_grid(DATA_FILE, out_file)["status"] == "success"
+    again = mcp_server.compute_pi_grid(DATA_FILE, out_file, overwrite=True)
+    assert again["status"] == "success", again
+
+
+def test_compute_pi_grid_root_jail_rejects_escape(tmp_path, monkeypatch):
+    pytest.importorskip("xarray")
+    # confine the server to tmp_path; DATA_FILE lives in the repo, outside it
+    monkeypatch.setenv("TCPYPI_MCP_ROOT", str(tmp_path))
+    out = mcp_server.compute_pi_grid(DATA_FILE, str(tmp_path / "out.nc"))
+    assert out["status"] == "error"
+    assert out["parameter"] == "input_nc"
+    assert "TCPYPI_MCP_ROOT" in out["message"]
+
+
+def test_compute_pi_grid_root_jail_rejects_output_escape(tmp_path, monkeypatch):
+    xr = pytest.importorskip("xarray")
+    root = tmp_path / "root"
+    root.mkdir()
+    inside = str(root / "in.nc")
+    xr.open_dataset(DATA_FILE).to_netcdf(inside)
+
+    monkeypatch.setenv("TCPYPI_MCP_ROOT", str(root))
+    # output aims outside the jail (a sibling of root)
+    out = mcp_server.compute_pi_grid(inside, str(tmp_path / "escape.nc"))
+    assert out["status"] == "error"
+    assert out["parameter"] == "output_nc"
+
+
+def test_compute_pi_grid_root_jail_allows_within(tmp_path, monkeypatch):
+    xr = pytest.importorskip("xarray")
+    inside = str(tmp_path / "in.nc")
+    xr.open_dataset(DATA_FILE).to_netcdf(inside)
+
+    monkeypatch.setenv("TCPYPI_MCP_ROOT", str(tmp_path))
+    out = mcp_server.compute_pi_grid(inside, str(tmp_path / "out.nc"))
+    assert out["status"] == "success", out
+
+
+def test_compute_pi_grid_error_is_sanitized(tmp_path):
+    """A failed open returns the exception type, never repr()/absolute paths."""
+    pytest.importorskip("xarray")
+    bad = tmp_path / "not_netcdf.nc"
+    bad.write_bytes(b"this is not a netCDF file")
+
+    out = mcp_server.compute_pi_grid(str(bad), str(tmp_path / "out.nc"))
+    assert out["status"] == "error"
+    assert out["parameter"] == "input_nc"
+    assert "could not open input_nc" in out["message"]
+    # the resolved absolute path must not leak back over the protocol
+    assert str(bad) not in out["message"]
+
+
 # ---------------------------------------------------------------------------
 # Server registration (needs fastmcp)
 # ---------------------------------------------------------------------------
