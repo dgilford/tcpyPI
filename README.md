@@ -19,7 +19,7 @@ If you have any questions, comments, or feedback, please [contact the developer]
 ## Citation
 pyPI was developed by [Daniel Gilford](https://github.com/dgilford) and is archived on Zenodo. A machine-readable [`CITATION.cff`](CITATION.cff) is included.
 
-[![DOI](https://zenodo.org/badge/247725622.svg)](https://doi.org/10.5281/zenodo.3756005)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.3756005-1682D4.svg)](https://doi.org/10.5281/zenodo.3756005)
 
 If you use pyPI in your work, please cite **both** the paper and the software. The Zenodo **concept DOI** below always resolves to the latest version (cite a specific version DOI if you need it, e.g. `10.5281/zenodo.21301851` for v1.4.2):
 
