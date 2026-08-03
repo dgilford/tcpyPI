@@ -8,6 +8,7 @@ Core library in `src/tcpyPI/`:
 - `utilities.py` — thermodynamic helpers, unit/longitude conversions, PI efficiency/disequilibrium (`decompose_pi` scalar core).
 - `constants.py` — meteorological constants (fully documented, incl. the deliberate modified `CL=2500`); `numba.py` — the `@njit`/`guvectorize` wrapper (graceful pure-Python fallback when Numba is absent).
 - `vi.py` — TE12 ventilation index + entropy-deficit (`chi_m`) + `vi_log_decomposition`. `gpi.py` — genesis potential index (`en04`, `e10`) + `gpi_log_decomposition`. `pdi.py` — power dissipation index. `relative_intensity.py` — ν = V/V_PI.
+- **Log-decomposition API shape.** `pi_log_decomposition` returns a 4-**tuple** `(lnpi, lneff, lndiseq, lnCKCD)` (deliberate — it composes positionally), while `vi_`/`gpi_log_decomposition` return **dicts**. All of them return **bare numpy arrays even when handed xarray inputs** (and `lnCKCD` is a plain float), so coords/dims are dropped: rewrap against a template DataArray before any `.sel`/`.weighted`/dim-named reduction, or it fails with `'<dim>' not found in array dimensions ('dim_0', …)`. `entropy_deficit_te12_from_profile` is per-profile only — loop or `apply_ufunc(vectorize=True)` to apply it over a grid.
 - `xarray.py` — whole-field Dataset entry point `pi_dataset(ds, dim, **knobs)` (wraps `pi_field`; requires the `[xarray]` extra; guarded import so the module loads without it). `mcp_server.py` — MCP server (`tcpypi-mcp` console script, `[mcp]` extra): six tools (`compute_pi`, `compute_pi_grid`, `decompose_pi`, `ventilation_index`, `genesis_potential_index`, `power_dissipation_index`), all thin wrappers — I/O + validation only, no science in the server. Units are never converted silently (grid inputs must carry matching netCDF `units` attrs); every result carries provenance and the `ifl == 1` trustworthy-output gate; missing values cross the protocol as JSON null. `compute_pi_grid` file access is guarded: it refuses to clobber an existing output unless `overwrite=True`, confines reads/writes to `$TCPYPI_MCP_ROOT` when that env var is set (symlinks resolved, `..` blocked), and returns sanitized errors (exception type + bounded message, never absolute paths or backend internals).
 
 Sample workflow in `run_sample.py` (writes `data/raw_sample_output.nc`, `data/full_sample_output.nc`). Tests in `tests/`. Notebooks in `notebooks/`; figures in `figures/`; legacy BE02 MATLAB in `matlab_scripts/`.
@@ -15,6 +16,7 @@ Sample workflow in `run_sample.py` (writes `data/raw_sample_output.nc`, `data/fu
 ## Build, Test, and Development Commands
 - `pip install -e .` (Python 3.11+). Optional extras: `.[xarray]`, `.[demo]`.
 - Tests and tooling use pixi. **Note:** a stale `pixi` shim may shadow the real binary — use `~/.pixi/bin/pixi` if `pixi` fails with a module error.
+  - Environments are `default`, `bench`, `lint`, `minimal`, `test-latest`, `test-xarray-latest`, `test-min`, `test-xarray-min`, `test-mcp` (`pixi info` lists them). There is **no `demo` env** despite the `.[demo]` extra — use **`default`** to run notebooks or plotting scripts, since it is the environment carrying notebook + xarray + matplotlib.
   - `pixi run -e test-latest basic-tests` — core suite + doctests.
   - `pixi run -e test-xarray-latest xarray-tests` — sample-output regression (rtol=1e-13 pins).
   - `pixi run -e test-min basic-tests` — minimum supported floor (py3.11 / numpy 1.26 / numba 0.59).
@@ -27,6 +29,7 @@ Sample workflow in `run_sample.py` (writes `data/raw_sample_output.nc`, `data/fu
 
 ## Data Policy
 - Track only the small samples (`sample_data.nc` ~6 MB, `era5_demo_subset.nc`, run_sample outputs, the MATLAB reference). `.gitignore` uses an explicit allowlist — do **not** commit raw ERA5 downloads or other large `.nc`.
+- **Longitude conventions differ between the two tracked data files.** `data/sample_data.nc` is on **0–360** (250→320 for the North Atlantic sample); `data/mdr.json` basin boxes are on **−180/180** (e.g. `na` = −95→−50). Selecting an MDR box straight out of the JSON returns an **empty selection with no error** (`lon` dim of size 0) — convert with `lon % 360` first. Latitude slice direction must also match the file's ordering.
 - The tracked sample is regional (North Atlantic 2024), subsampled to ~2° (decimation, no interpolation), SST masked to ocean; humidity is stored as the **true water-vapor mixing ratio `r`** (converted from ERA5 specific humidity via `r = q/(1−q)`), with ERA5 relative humidity as `rh`. Regenerate a wider/global sample by widening the `area` in `data/download_era5.py`.
 
 ## Coding Style & Scientific Invariants
