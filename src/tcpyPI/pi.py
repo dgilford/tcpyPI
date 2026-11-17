@@ -117,10 +117,10 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
         - TOB : float
             Temperature at level of neutral buoyancy (K).
         - LNB : float
-            Level of neutral buoyancy pressure (hPa). If the parcel has no level
-            of neutral buoyancy (no positive buoyancy above the parcel level),
-            CAPED=0 and the sentinels ``LNB=0`` and ``TOB=T[0]`` are returned
-            with ``IFLAG=1``; callers must not treat them as an outflow level.
+            Level of neutral buoyancy pressure (hPa). If no level strictly above
+            JMIN (the lowest level at or above the parcel) is buoyant, CAPED=0
+            and the sentinels ``LNB=0`` and ``TOB=T[0]`` are returned with
+            ``IFLAG=1``; callers must not treat them as an outflow level.
         - IFLAG : int
             Status flag:
 
