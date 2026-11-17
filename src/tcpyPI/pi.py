@@ -12,7 +12,7 @@ Full pyPI documentation, module validation, and sample code provided at:
 Download with the python Package index from the command line with:
    > pip install tcpypi
 
-Last updated 2/20/2025, v1.4
+Last updated 11/17/2026, v1.5
 
 Revision History:
   Revised on 9/24/2005 by K. Emanuel to fix convergence problems at high pressure
@@ -36,6 +36,13 @@ Revision History:
     - Added `outflow_source` option ("cape_star" vs "cape_env") to control how outflow temperature/level are defined.
     - Added log decomposition API (`log_decompose_pi`, `pi_log_decomposition`) and updated sample workflow/docs to use it.
     - Standardized main-module docstrings (NumPy style) and expanded README guidance on sensitivity/configuration options.
+  Revised 11/17/2026 by D. Gilford (v1.5; thanks to M. Morrissey for reporting):
+    - Implemented the 1/7/2017 JMIN fix listed above, which had never been carried into pyPI:
+      JMIN is now the lowest level at or above the parcel, so levels below the parcel no longer
+      enter CAPE during the PI iteration (#89). PI was slightly too intense; PMIN rises by ~1 hPa
+      on average (sample data, 40S-40N ocean), more for deeper storms, with essentially no change
+      where PMIN >= 1000 hPa. Matches the 2017 pcmin.m, including its zero-CAPE rule when the
+      parcel is buoyant only at JMIN.
 """
 # doctest: +ELLIPSIS
 
@@ -208,18 +215,33 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
     IFLAG=1
     # Values to help loop
     NCMAX=0
-    jmin=int(1e6)
-    
+
+    #
+    #   ***  Find JMIN, the lowest profile level at or above the parcel level   ***
+    #   (Luke Davis 1/7/2017 fix, as in pcmin.m since 7/26/2017; GitHub issue #89).
+    #   When the parcel pressure PP is below the lowest sounding level (e.g. PP is
+    #   the central pressure estimate during the PI iteration), levels with
+    #   P > PP lie beneath the parcel and must not enter the CAPE integral.
+    #
+    jmin=nlvl
+    for j in range(nlvl):
+        if (P[j] <= PP):
+            jmin=j
+            break
+    # CHECK: Does any profile level lie at or above the parcel? If not, return zero CAPE
+    if (jmin == nlvl):
+        CAPED=0
+        TOB=T[0]
+        LNB=0
+        return(CAPED,TOB,LNB,IFLAG)
+
     #
     #   ***  Begin updraft loop   ***
     #
 
-    # loop over each level in the profile
-    for j in range(nlvl):
-        
-        # jmin is the index of the lowest pressure level evaluated in the loop
-        jmin=int(min([jmin,j]))
-    
+    # loop over each level at or above the parcel level
+    for j in range(jmin, nlvl):
+
         #
         #   *** Calculate Parcel quantities BELOW lifted condensation level   ***
         #
@@ -267,13 +289,18 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
     #
     #   ***  Find maximum level of positive buoyancy, INB    ***
     #
-    INB=0
+    # Equivalent to the 2017 pcmin.m test (INB=1; search J=N:-1:JMIN; zero CAPE
+    # if INB==JMIN, or if INB==1 i.e. nothing buoyant): CAPE is zero unless some
+    # level strictly above JMIN is buoyant. NOTE: inherited from pcmin.m, this
+    # makes CAPE jump to zero when the parcel is buoyant only at JMIN, e.g. as
+    # PP crosses a sounding level; with JMIN = 0 it reproduces the original test.
+    INB=jmin
     for j in range(nlvl-1, jmin, -1):
         if (TVRDIF[j] > 0):
             INB=max([INB,j])
-            
-    # CHECK: Is the LNB higher than the surface? If not, return zero CAPE  
-    if (INB==0):
+
+    # CHECK: Is the LNB higher than the parcel level? If not, return zero CAPE
+    if (INB==jmin):
         CAPED=0
         TOB=T[0]
         LNB=P[INB]
@@ -776,11 +803,11 @@ def pi(
         >>> R = level_data[:, 2]
         >>> VMAX, PMIN, IFL, TO, OTL = pi(SSTC, MSL, P, TC, R)
         >>> print(f"VMAX: {VMAX}\nPMIN: {PMIN}\nIFL: {IFL}\nTO: {TO}\nOTL: {OTL}")
-        VMAX: 82.4845...
-        PMIN: 900.2039...
+        VMAX: 82.1713...
+        PMIN: 902.6358...
         IFL: 1
-        TO: 197.1666...
-        OTL: 84.9169...
+        TO: 197.1080...
+        OTL: 85.2099...
 
     Exceptional cases:
         - SST is missing, e.g. over land
@@ -799,7 +826,7 @@ def pi(
 
         - Mixing ratios contain a nan
             >>> pi(SSTC, MSL, P, TC, R + nan_in_levels)
-            (82.4845..., 900.2039..., 1, 197.1666..., 84.9169...)
+            (82.1713..., 902.6358..., 1, 197.1080..., 85.2099...)
     """
     if outflow_source == "cape_star":
         outflow_source_flag = 0
