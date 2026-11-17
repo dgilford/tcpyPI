@@ -36,13 +36,18 @@ Revision History:
     - Added `outflow_source` option ("cape_star" vs "cape_env") to control how outflow temperature/level are defined.
     - Added log decomposition API (`log_decompose_pi`, `pi_log_decomposition`) and updated sample workflow/docs to use it.
     - Standardized main-module docstrings (NumPy style) and expanded README guidance on sensitivity/configuration options.
-  Revised 11/17/2026 by D. Gilford (v1.5; thanks to M. Morrissey for reporting):
+  Revised 11/17/2026 by D. Gilford (v1.5; thanks to M. Morrissey for reporting both issues):
     - Implemented the 1/7/2017 JMIN fix listed above, which had never been carried into pyPI:
       JMIN is now the lowest level at or above the parcel, so levels below the parcel no longer
       enter CAPE during the PI iteration (#89). PI was slightly too intense; PMIN rises by ~1 hPa
       on average (sample data, 40S-40N ocean), more for deeper storms, with essentially no change
       where PMIN >= 1000 hPa. Matches the 2017 pcmin.m, including its zero-CAPE rule when the
       parcel is buoyant only at JMIN.
+    - outflow_source="cape_env": if the converged environmental parcel has no level of neutral
+      buoyancy, return missing PI with new flag IFL=4 instead of using the lowest-level air
+      temperature as TO with OTL=0 (#90, #70); where VMAX/PMIN do not depend on the outflow
+      (diss_flag=0 or CAPE*=0) only TO/OTL are missing. With "cape_star", TO and OTL are now
+      reported as missing (instead of T[0] and 0) when CAPE*=0; VMAX and PMIN are unchanged.
 """
 # doctest: +ELLIPSIS
 
@@ -112,7 +117,10 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
         - TOB : float
             Temperature at level of neutral buoyancy (K).
         - LNB : float
-            Level of neutral buoyancy pressure (hPa).
+            Level of neutral buoyancy pressure (hPa). If the parcel has no level
+            of neutral buoyancy (no positive buoyancy above the parcel level),
+            CAPED=0 and the sentinels ``LNB=0`` and ``TOB=T[0]`` are returned
+            with ``IFLAG=1``; callers must not treat them as an outflow level.
         - IFLAG : int
             Status flag:
 
@@ -300,6 +308,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
             INB=max([INB,j])
 
     # CHECK: Is the LNB higher than the parcel level? If not, return zero CAPE
+    # (no level of neutral buoyancy: LNB=0 and TOB=T[0] are sentinels, see pi())
     if (INB==jmin):
         CAPED=0
         TOB=T[0]
@@ -593,6 +602,12 @@ def _pi_numba(
         TO=TOMS   
         OTL=LNBS
         # Optionally use CAPEenv (final-iteration) outflow definition.
+        # NOTE: if the environmental parcel has no level of neutral buoyancy, cape()
+        # returns the sentinels LNB=0 and TOB=T[0]. They are deliberately left in
+        # place during the iteration: substituting the CAPE* outflow at such
+        # iterates makes the fixed-point map discontinuous and caused new
+        # non-convergence (IFL=2) in testing. Only the converged state matters;
+        # it is checked after the loop (GitHub issue #90).
         if outflow_source_flag == 1:
             TO=TO_ENV
             OTL=OTL_ENV
@@ -652,7 +667,34 @@ def _pi_numba(
     # of 10-m winds from gradient wind speeds (Emanuel 2000, Powell 1980)
     FAC=max([0.0,(CAPEMS-CAPEM)])
     VMAX=V_reduc*np.sqrt(CKCD*RAT*FAC)
-        
+
+    #
+    #   ***  Outflow undefined: no level of neutral buoyancy (GitHub issue #90)  ***
+    #
+    if outflow_source_flag == 1:
+        # The converged environmental parcel has no LNB, so the CAPEenv outflow
+        # is undefined: report TO and OTL missing.
+        if (OTL_ENV == 0):
+            TO=np.nan
+            OTL=np.nan
+            # VMAX and PMIN depend on the undefined outflow through RAT=SST/TO,
+            # which multiplies (CAPEMS-CAPEM) = CAPEMS (CAPEM=0 without an LNB),
+            # unless dissipative heating is off (RAT=1) or CAPE*=0. Otherwise
+            # return missing PI with IFL=4 rather than substituting the CAPE*
+            # outflow (which would mix the two definitions in one field).
+            # NaN CAPEMS (missing data) also lands here: NaN != 0 is True.
+            if (diss_flag != 0) and (CAPEMS != 0):
+                VMAX=np.nan
+                PMIN=np.nan
+                # do not mask an earlier failure flag
+                if (IFL == 1):
+                    IFL=4
+    elif (OTL == 0):
+        # The saturated parcel has no LNB (CAPE*=0, so VMAX=0 is correct), but
+        # TO=T[0] and OTL=0 are sentinels, not an outflow: report them missing.
+        TO=np.nan
+        OTL=np.nan
+
     # Return the calculated outputs to the above program level
     return(VMAX,PMIN,IFL,TO,OTL)
 
@@ -739,6 +781,16 @@ def pi(
           SST) (default; matches BE02/pcmin behavior).
         - ``"cape_env"``: use the environmental CAPE calculation (CAPEenv) from the
           final convergence iteration (as discussed in Gilford et al. 2021).
+          The outflow is undefined when the environmental parcel has no level of
+          neutral buoyancy (CAPEenv=0). Such columns return missing outputs with
+          ``IFL=4``, except where VMAX and PMIN do not depend on the outflow
+          (``diss_flag=0``, or CAPE*=0 so that VMAX=0), where only ``TO`` and
+          ``OTL`` are missing. This missingness is not random: it preferentially
+          removes dry or stable environments, so compare against ``"cape_star"``
+          on the common set of valid columns. CAPEenv outflow is also sensitive
+          near marginal profiles: small input changes can switch the
+          environmental LNB between deep and shallow layers and shift PMIN by
+          tens of hPa in a small fraction of columns.
 
     Returns
     -------
@@ -753,13 +805,19 @@ def pi(
             Status flag:
 
             - ``1``: success
-            - ``0``: no convergence
-            - ``2``: CAPE routine failed to converge
+            - ``0``: improper input (e.g. SST <= 5 C, missing, or in kelvin;
+              unsuitable sounding or parcel)
+            - ``2``: no convergence (PI iteration or CAPE routine)
             - ``3``: CAPE routine failed due to missing data
+            - ``4``: outflow undefined (``outflow_source="cape_env"`` only): the
+              environmental parcel has no level of neutral buoyancy and VMAX/PMIN
+              depend on the outflow temperature; all outputs are missing
         - TO : float
-            Outflow temperature (K).
+            Outflow temperature (K). Missing if the parcel supplying the outflow
+            has no level of neutral buoyancy.
         - OTL : float
             Outflow temperature level (hPa), defined as the level of neutral buoyancy.
+            Missing if the parcel supplying the outflow has no level of neutral buoyancy.
 
     Examples
     --------
