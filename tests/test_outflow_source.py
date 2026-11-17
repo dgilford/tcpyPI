@@ -132,7 +132,7 @@ def test_cape_star_without_lnb_reports_missing_outflow():
     assert ifl == 1
     assert vmax == 0.0
     assert np.isfinite(pmin)
-    # TO=T[0] and OTL=0 are sentinels from cape(), not an outflow
+    # no level of neutral buoyancy: the outflow is undefined
     assert np.isnan(t0) and np.isnan(otl)
 
 

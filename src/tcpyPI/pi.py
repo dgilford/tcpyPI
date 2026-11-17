@@ -48,6 +48,10 @@ Revision History:
       temperature as TO with OTL=0 (#90, #70); where VMAX/PMIN do not depend on the outflow
       (diss_flag=0 or CAPE*=0) only TO/OTL are missing. With "cape_star", TO and OTL are now
       reported as missing (instead of T[0] and 0) when CAPE*=0; VMAX and PMIN are unchanged.
+    - cape(): when the parcel has no level of neutral buoyancy, return IFLAG=4 with missing TOB
+      and LNB (CAPED=0), instead of the sentinels TOB=T[0], LNB=0 with IFLAG=1. pi() keeps the
+      pcmin.m convention (TO = lowest-level temperature) internally during the iteration, so
+      its outputs are unchanged.
 """
 # doctest: +ELLIPSIS
 
@@ -115,12 +119,11 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
         - CAPED : float
             Convective available potential energy (J/kg).
         - TOB : float
-            Temperature at level of neutral buoyancy (K).
+            Temperature at level of neutral buoyancy (K). Missing if the parcel
+            has no level of neutral buoyancy (``IFLAG=4``).
         - LNB : float
-            Level of neutral buoyancy pressure (hPa). If no level strictly above
-            JMIN (the lowest level at or above the parcel) is buoyant, CAPED=0
-            and the sentinels ``LNB=0`` and ``TOB=T[0]`` are returned with
-            ``IFLAG=1``; callers must not treat them as an outflow level.
+            Level of neutral buoyancy pressure (hPa). Missing if the parcel has
+            no level of neutral buoyancy (``IFLAG=4``).
         - IFLAG : int
             Status flag:
 
@@ -128,6 +131,9 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
             - ``0``: improper sounding/parcel
             - ``2``: did not converge
             - ``3``: missing values in input profile
+            - ``4``: no level of neutral buoyancy (no level strictly above
+              JMIN, the lowest level at or above the parcel, is buoyant).
+              A valid result: CAPED=0, and TOB and LNB are missing.
     """
     #
     #   ***  Handle missing values   ***
@@ -236,11 +242,13 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
         if (P[j] <= PP):
             jmin=j
             break
-    # CHECK: Does any profile level lie at or above the parcel? If not, return zero CAPE
+    # CHECK: Does any profile level lie at or above the parcel? If not, return
+    # zero CAPE with no level of neutral buoyancy (IFLAG=4)
     if (jmin == nlvl):
         CAPED=0
-        TOB=T[0]
-        LNB=0
+        TOB=np.nan
+        LNB=np.nan
+        IFLAG=4
         return(CAPED,TOB,LNB,IFLAG)
 
     #
@@ -308,14 +316,13 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
             INB=max([INB,j])
 
     # CHECK: Is the LNB higher than the parcel level? If not, return zero CAPE
-    # (no level of neutral buoyancy: LNB=0 and TOB=T[0] are sentinels, see pi())
+    # with no level of neutral buoyancy (IFLAG=4). pcmin.m returns TOB=T(1) here;
+    # pi() applies that convention internally where it needs a finite TO.
     if (INB==jmin):
         CAPED=0
-        TOB=T[0]
-        LNB=P[INB]
-#         TOB=np.nan
-        LNB=0
-        # Return the unconverged values
+        TOB=np.nan
+        LNB=np.nan
+        IFLAG=4
         return(CAPED,TOB,LNB,IFLAG)
     
     # if check is passed, continue with the CAPE calculation
@@ -550,7 +557,8 @@ def _pi_numba(
     CAPEA = result[0]
     IFLAG = result[3]
     # if the CAPE function tripped a flag, set the output IFL to it
-    if (IFLAG != 1):
+    # (IFLAG=4, no level of neutral buoyancy, is a valid zero-CAPE result)
+    if (IFLAG != 1) and (IFLAG != 4):
         IFL=int(IFLAG)
     
     #
@@ -566,6 +574,12 @@ def _pi_numba(
 
     TO_ENV=np.nan
     OTL_ENV=np.nan
+    # Outflow temperature used when a parcel has no LNB (pcmin.m: TOB=T(1)). cape()
+    # discards missing lowest levels (miss_handle=0), so use the lowest valid level.
+    T_NO_LNB=T[np.where(~np.isnan(T))[0][0]]
+    # does the environmental (ENV) or saturated (STAR) parcel lack an LNB?
+    ENV_NO_LNB=False
+    STAR_NO_LNB=False
 
     # loop until convergence or bail out
     while (np.abs(PNEW-PMOLD) > 0.5):
@@ -580,8 +594,17 @@ def _pi_numba(
         CAPEM, TOB_ENV, LNB_ENV, IFLAG = cape(
             TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle
         )
+        # No level of neutral buoyancy (CAPEM=0): use the pcmin.m outflow
+        # convention TO=T_NO_LNB so the iteration stays finite. It is deliberately
+        # kept during the iteration: substituting the CAPE* outflow at such
+        # iterates makes the fixed-point map discontinuous and caused new
+        # non-convergence (IFL=2) in testing. Only the converged state matters;
+        # it is checked after the loop (GitHub issue #90).
+        ENV_NO_LNB = (IFLAG == 4)
+        if ENV_NO_LNB:
+            TOB_ENV=T_NO_LNB
         # if the CAPE function tripped a different flag, set the output IFL to it
-        if (IFLAG != 1):
+        elif (IFLAG != 1):
             IFL=int(IFLAG)
         TO_ENV=TOB_ENV
         OTL_ENV=LNB_ENV
@@ -595,19 +618,18 @@ def _pi_numba(
         RP=utilities.rv(ES0,PP)
         result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle)
         CAPEMS, TOMS, LNBS, IFLAG = result
+        # No level of neutral buoyancy (CAPE*=0): pcmin.m convention TO=T_NO_LNB
+        # keeps RAT finite (it multiplies CAPEMS-CAPEM=0, so VMAX=0)
+        STAR_NO_LNB = (IFLAG == 4)
+        if STAR_NO_LNB:
+            TOMS=T_NO_LNB
         # if the CAPE function tripped a flag, set the output IFL to it
-        if (IFLAG != 1):
+        elif (IFLAG != 1):
             IFL=int(IFLAG)
         # Store the outflow temperature and level of neutral bouyancy at the outflow level (OTL)
-        TO=TOMS   
+        TO=TOMS
         OTL=LNBS
         # Optionally use CAPEenv (final-iteration) outflow definition.
-        # NOTE: if the environmental parcel has no level of neutral buoyancy, cape()
-        # returns the sentinels LNB=0 and TOB=T[0]. They are deliberately left in
-        # place during the iteration: substituting the CAPE* outflow at such
-        # iterates makes the fixed-point map discontinuous and caused new
-        # non-convergence (IFL=2) in testing. Only the converged state matters;
-        # it is checked after the loop (GitHub issue #90).
         if outflow_source_flag == 1:
             TO=TO_ENV
             OTL=OTL_ENV
@@ -674,7 +696,7 @@ def _pi_numba(
     if outflow_source_flag == 1:
         # The converged environmental parcel has no LNB, so the CAPEenv outflow
         # is undefined: report TO and OTL missing.
-        if (OTL_ENV == 0):
+        if ENV_NO_LNB:
             TO=np.nan
             OTL=np.nan
             # VMAX and PMIN depend on the undefined outflow through RAT=SST/TO,
@@ -689,9 +711,9 @@ def _pi_numba(
                 # do not mask an earlier failure flag
                 if (IFL == 1):
                     IFL=4
-    elif (OTL == 0):
+    elif STAR_NO_LNB:
         # The saturated parcel has no LNB (CAPE*=0, so VMAX=0 is correct), but
-        # TO=T[0] and OTL=0 are sentinels, not an outflow: report them missing.
+        # TO=T_NO_LNB is a convention, not an outflow: report it missing.
         TO=np.nan
         OTL=np.nan
 

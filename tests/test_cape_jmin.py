@@ -95,14 +95,22 @@ def test_zero_cape_unless_buoyant_strictly_above_jmin():
     assert cape_star(1000.0)[0] > 0  # JMIN = 0: buoyant layer above P[0]
     assert cape_star(990.0)[0] > 0
     CAPED, TOB, LNB, IFLAG = cape_star(999.9)  # JMIN = 1, buoyant only at JMIN
-    assert (CAPED, LNB, IFLAG) == (0, 0, 1)
+    assert CAPED == 0 and IFLAG == 4
+    assert np.isnan(TOB) and np.isnan(LNB)
 
 
 def test_no_level_above_parcel_returns_zero_cape():
     # parcel above every retained level (all levels have P > PP): no CAPE, no LNB
     _, _, P, T, R = _profile_si()
     CAPED, TOB, LNB, IFLAG = cape(T[0], R[0], 45.0, T, R, P, ptop=50)
-    assert CAPED == 0
-    assert LNB == 0
-    assert TOB == T[0]
-    assert IFLAG == 1
+    assert CAPED == 0 and IFLAG == 4
+    assert np.isnan(TOB) and np.isnan(LNB)
+
+
+def test_stable_parcel_flags_no_lnb():
+    # parcel never buoyant (cold SST): IFLAG=4 with missing TOB/LNB, not sentinels
+    _, _, P, T, R = _profile_si()
+    TP = utilities.T_Ctok(15.0)
+    CAPED, TOB, LNB, IFLAG = cape(TP, utilities.rv(utilities.es_cc(15.0), P[0]), P[0], T, R, P)
+    assert CAPED == 0 and IFLAG == 4
+    assert np.isnan(TOB) and np.isnan(LNB)
