@@ -83,7 +83,7 @@ Users who want to apply the PI calculation to a set of local environmental condi
   - `"cape_star"`: outflow is the LNB (`OTL`) and temperature (`T0`) from the saturated CAPE* calculation (default; BE02/pcmin behavior).
   - `"cape_env"`: outflow is the LNB and temperature from the environmental CAPE (CAPEenv) on the final convergence iteration (see Gilford et al. 2021 discussion). Where the environmental parcel has no level of neutral buoyancy, outputs are missing with `IFL=4` (v1.5+). Shallow, lower-tropospheric outflows are common in the subtropics.
 
-**Changes in v1.5:** the JMIN definition in `cape()` now matches the 2017 pcmin.m ([#89](https://github.com/dgilford/tcpyPI/issues/89)), raising PMIN by ~1 hPa on average (up to ~8 hPa) on the sample data. `TO`/`OTL` are now missing when the outflow parcel has no level of neutral buoyancy ([#90](https://github.com/dgilford/tcpyPI/issues/90)). `cape()` now flags that case with `IFLAG=4` and missing `TOB`/`LNB`.
+**Changes in v1.5:** the JMIN definition in `cape()` now matches the 2017 pcmin.m ([#89](https://github.com/dgilford/tcpyPI/issues/89)), raising PMIN by ~1 hPa on average (up to ~8 hPa) on the sample data. `TO`/`OTL` are now missing when the outflow parcel has no level of neutral buoyancy ([#90](https://github.com/dgilford/tcpyPI/issues/90)). Under the default `"cape_star"` this includes columns with CAPE* = 0 (VMAX = 0, previously `TO = T[0]`, `OTL = 0`), so masking on `TO` now drops those points; mask on `IFL` instead. `cape()` now flags that case with `IFLAG=4` and missing `TOB`/`LNB`.
 
 Example:
 
