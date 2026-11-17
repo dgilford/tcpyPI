@@ -49,9 +49,9 @@ Revision History:
       (diss_flag=0 or CAPE*=0) only TO/OTL are missing. With "cape_star", TO and OTL are now
       reported as missing (instead of T[0] and 0) when CAPE*=0; VMAX and PMIN are unchanged.
     - cape(): when the parcel has no level of neutral buoyancy, return IFLAG=4 with missing TOB
-      and LNB (CAPED=0), instead of the sentinels TOB=T[0], LNB=0 with IFLAG=1. pi() keeps the
-      pcmin.m convention (TO = lowest-level temperature) internally during the iteration, so
-      its outputs are unchanged.
+      and LNB (CAPED=0), instead of the sentinels TOB=T[0], LNB=0 with IFLAG=1. In pi(), TO is
+      then missing like OTL; the pcmin.m convention (lowest-level temperature) is used only in
+      the efficiency ratio during the iteration, so VMAX and PMIN are unchanged.
 """
 # doctest: +ELLIPSIS
 
@@ -574,8 +574,9 @@ def _pi_numba(
 
     TO_ENV=np.nan
     OTL_ENV=np.nan
-    # Outflow temperature used when a parcel has no LNB (pcmin.m: TOB=T(1)). cape()
-    # discards missing lowest levels (miss_handle=0), so use the lowest valid level.
+    # Temperature used in the efficiency RAT when the outflow parcel has no LNB
+    # (pcmin.m: TOB=T(1)). cape() discards missing lowest levels (miss_handle=0),
+    # so use the lowest valid level.
     T_NO_LNB=T[np.where(~np.isnan(T))[0][0]]
     # does the environmental (ENV) or saturated (STAR) parcel lack an LNB?
     ENV_NO_LNB=False
@@ -594,17 +595,10 @@ def _pi_numba(
         CAPEM, TOB_ENV, LNB_ENV, IFLAG = cape(
             TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle
         )
-        # No level of neutral buoyancy (CAPEM=0): use the pcmin.m outflow
-        # convention TO=T_NO_LNB so the iteration stays finite. It is deliberately
-        # kept during the iteration: substituting the CAPE* outflow at such
-        # iterates makes the fixed-point map discontinuous and caused new
-        # non-convergence (IFL=2) in testing. Only the converged state matters;
-        # it is checked after the loop (GitHub issue #90).
+        # IFLAG=4 (no level of neutral buoyancy; TOB/LNB missing) is a valid result
         ENV_NO_LNB = (IFLAG == 4)
-        if ENV_NO_LNB:
-            TOB_ENV=T_NO_LNB
         # if the CAPE function tripped a different flag, set the output IFL to it
-        elif (IFLAG != 1):
+        if (IFLAG != 1) and (IFLAG != 4):
             IFL=int(IFLAG)
         TO_ENV=TOB_ENV
         OTL_ENV=LNB_ENV
@@ -618,23 +612,32 @@ def _pi_numba(
         RP=utilities.rv(ES0,PP)
         result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle)
         CAPEMS, TOMS, LNBS, IFLAG = result
-        # No level of neutral buoyancy (CAPE*=0): pcmin.m convention TO=T_NO_LNB
-        # keeps RAT finite (it multiplies CAPEMS-CAPEM=0, so VMAX=0)
         STAR_NO_LNB = (IFLAG == 4)
-        if STAR_NO_LNB:
-            TOMS=T_NO_LNB
         # if the CAPE function tripped a flag, set the output IFL to it
-        elif (IFLAG != 1):
+        if (IFLAG != 1) and (IFLAG != 4):
             IFL=int(IFLAG)
         # Store the outflow temperature and level of neutral bouyancy at the outflow level (OTL)
+        # (both missing if the parcel has no LNB)
         TO=TOMS
         OTL=LNBS
+        NO_LNB=STAR_NO_LNB
         # Optionally use CAPEenv (final-iteration) outflow definition.
         if outflow_source_flag == 1:
             TO=TO_ENV
             OTL=OTL_ENV
+            NO_LNB=ENV_NO_LNB
         # Calculate the proxy for TC efficiency (BE02, EQN. 1-3)
-        RAT=SSTK/TO
+        if NO_LNB:
+            # The outflow is undefined, but the iteration needs a finite RAT: use
+            # the pcmin.m convention (lowest-level temperature). For "cape_star"
+            # this is CAPE*=0, where the efficiency term vanishes at convergence
+            # (VMAX=0). For "cape_env" it must be kept at intermediate iterates:
+            # substituting the CAPE* outflow made the fixed-point map
+            # discontinuous and caused new non-convergence (IFL=2) in testing.
+            # Only the converged state matters; it is checked after the loop.
+            RAT=SSTK/T_NO_LNB
+        else:
+            RAT=SSTK/TO
         # If dissipative heating is "off", TC efficiency proxy is set to 1.0 (BE02, pg. 3)
         if (diss_flag == 0):
             RAT=1.0
@@ -693,29 +696,20 @@ def _pi_numba(
     #
     #   ***  Outflow undefined: no level of neutral buoyancy (GitHub issue #90)  ***
     #
-    if outflow_source_flag == 1:
-        # The converged environmental parcel has no LNB, so the CAPEenv outflow
-        # is undefined: report TO and OTL missing.
-        if ENV_NO_LNB:
-            TO=np.nan
-            OTL=np.nan
-            # VMAX and PMIN depend on the undefined outflow through RAT=SST/TO,
-            # which multiplies (CAPEMS-CAPEM) = CAPEMS (CAPEM=0 without an LNB),
-            # unless dissipative heating is off (RAT=1) or CAPE*=0. Otherwise
-            # return missing PI with IFL=4 rather than substituting the CAPE*
-            # outflow (which would mix the two definitions in one field).
-            # NaN CAPEMS (missing data) also lands here: NaN != 0 is True.
-            if (diss_flag != 0) and (CAPEMS != 0):
-                VMAX=np.nan
-                PMIN=np.nan
-                # do not mask an earlier failure flag
-                if (IFL == 1):
-                    IFL=4
-    elif STAR_NO_LNB:
-        # The saturated parcel has no LNB (CAPE*=0, so VMAX=0 is correct), but
-        # TO=T_NO_LNB is a convention, not an outflow: report it missing.
-        TO=np.nan
-        OTL=np.nan
+    # TO and OTL are already missing. With "cape_star" (CAPE*=0), VMAX=0 and PMIN
+    # do not depend on the outflow. With "cape_env", VMAX and PMIN depend on the
+    # undefined outflow through RAT, which multiplies (CAPEMS-CAPEM) = CAPEMS
+    # (CAPEM=0 without an LNB), unless dissipative heating is off (RAT=1) or
+    # CAPE*=0. Otherwise return missing PI with IFL=4 rather than substituting
+    # the CAPE* outflow (which would mix the two definitions in one field).
+    # NaN CAPEMS (missing data) also lands here: NaN != 0 is True.
+    if (outflow_source_flag == 1) and ENV_NO_LNB:
+        if (diss_flag != 0) and (CAPEMS != 0):
+            VMAX=np.nan
+            PMIN=np.nan
+            # do not mask an earlier failure flag
+            if (IFL == 1):
+                IFL=4
 
     # Return the calculated outputs to the above program level
     return(VMAX,PMIN,IFL,TO,OTL)
