@@ -12,7 +12,7 @@ Full pyPI documentation, module validation, and sample code provided at:
 Download with the python Package index from the command line with:
    > pip install tcpypi
 
-Last updated 2/20/2025, v1.4
+Last updated 11/17/2026, v1.5
 
 Revision History:
   Revised on 9/24/2005 by K. Emanuel to fix convergence problems at high pressure
@@ -36,6 +36,20 @@ Revision History:
     - Added `outflow_source` option ("cape_star" vs "cape_env") to control how outflow temperature/level are defined.
     - Added log decomposition API (`log_decompose_pi`, `pi_log_decomposition`) and updated sample workflow/docs to use it.
     - Standardized main-module docstrings (NumPy style) and expanded README guidance on sensitivity/configuration options.
+  Revised 11/17/2026 by D. Gilford (v1.5; thanks to M. Morrissey):
+    - Implemented the 1/7/2017 JMIN fix listed above, which had never been carried into pyPI:
+      JMIN is now the lowest level at or above the parcel, so levels below the parcel no longer
+      enter CAPE during the PI iteration. Now matches the 2017 pcmin.m, including its zero-CAPE rule 
+      when the parcel is buoyant only at JMIN.
+    - outflow_source="cape_env": if the converged environmental parcel has no level of neutral
+      buoyancy, return missing PI with new flag IFL=4 instead of using the lowest-level air
+      temperature as TO with OTL=0; where VMAX/PMIN do not depend on the outflow
+      (diss_flag=0 or CAPE*=0) only TO/OTL are missing. With "cape_star", TO and OTL are now
+      reported as missing (instead of T[0] and 0) when CAPE*=0; VMAX and PMIN are unchanged.
+    - cape(): when the parcel has no level of neutral buoyancy, return IFLAG=4 with missing TOB
+      and LNB (CAPED=0), instead of the sentinels TOB=T[0], LNB=0 with IFLAG=1. In pi(), TO is
+      then missing like OTL; the pcmin.m convention (lowest-level temperature) is used only in
+      the efficiency ratio during the iteration, so VMAX and PMIN are unchanged.
 """
 # doctest: +ELLIPSIS
 
@@ -113,6 +127,9 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
             - ``0``: improper sounding/parcel
             - ``2``: did not converge
             - ``3``: missing values in input profile
+            - ``4``: no level of neutral buoyancy (no level strictly above
+              JMIN, the lowest level at or above the parcel, is buoyant).
+              CAPED=0, and TOB and LNB are missing.
     """
     #
     #   ***  Handle missing values   ***
@@ -208,18 +225,30 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
     IFLAG=1
     # Values to help loop
     NCMAX=0
-    jmin=int(1e6)
-    
+
+    #
+    #   ***  Find JMIN, the lowest level at or above the parcel   ***
+    #
+    jmin=nlvl
+    for j in range(nlvl):
+        if (P[j] <= PP):
+            jmin=j
+            break
+    # CHECK: Is any level at or above the parcel? If not, return zero CAPE (IFLAG=4)
+    if (jmin == nlvl):
+        CAPED=0
+        TOB=np.nan
+        LNB=np.nan
+        IFLAG=4
+        return(CAPED,TOB,LNB,IFLAG)
+
     #
     #   ***  Begin updraft loop   ***
     #
 
-    # loop over each level in the profile
-    for j in range(nlvl):
-        
-        # jmin is the index of the lowest pressure level evaluated in the loop
-        jmin=int(min([jmin,j]))
-    
+    # loop over each level at or above the parcel level
+    for j in range(jmin, nlvl):
+
         #
         #   *** Calculate Parcel quantities BELOW lifted condensation level   ***
         #
@@ -267,19 +296,17 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
     #
     #   ***  Find maximum level of positive buoyancy, INB    ***
     #
-    INB=0
+    INB=jmin
     for j in range(nlvl-1, jmin, -1):
         if (TVRDIF[j] > 0):
             INB=max([INB,j])
-            
-    # CHECK: Is the LNB higher than the surface? If not, return zero CAPE  
-    if (INB==0):
+
+    # CHECK: Is any level above JMIN buoyant? If not, return zero CAPE (IFLAG=4)
+    if (INB==jmin):
         CAPED=0
-        TOB=T[0]
-        LNB=P[INB]
-#         TOB=np.nan
-        LNB=0
-        # Return the unconverged values
+        TOB=np.nan
+        LNB=np.nan
+        IFLAG=4
         return(CAPED,TOB,LNB,IFLAG)
     
     # if check is passed, continue with the CAPE calculation
@@ -513,8 +540,8 @@ def _pi_numba(
     result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle)
     CAPEA = result[0]
     IFLAG = result[3]
-    # if the CAPE function tripped a flag, set the output IFL to it
-    if (IFLAG != 1):
+    # if the CAPE function tripped a flag (other than 4, no LNB), set the output IFL to it
+    if (IFLAG != 1) and (IFLAG != 4):
         IFL=int(IFLAG)
     
     #
@@ -530,6 +557,11 @@ def _pi_numba(
 
     TO_ENV=np.nan
     OTL_ENV=np.nan
+    # lowest valid temperature, used in RAT when the outflow parcel has no LNB
+    T_NO_LNB=T[np.where(~np.isnan(T))[0][0]]
+    # does the environmental (ENV) or saturated (STAR) parcel lack an LNB?
+    ENV_NO_LNB=False
+    STAR_NO_LNB=False
 
     # loop until convergence or bail out
     while (np.abs(PNEW-PMOLD) > 0.5):
@@ -544,8 +576,9 @@ def _pi_numba(
         CAPEM, TOB_ENV, LNB_ENV, IFLAG = cape(
             TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle
         )
-        # if the CAPE function tripped a different flag, set the output IFL to it
-        if (IFLAG != 1):
+        ENV_NO_LNB = (IFLAG == 4)
+        # if the CAPE function tripped a flag (other than 4, no LNB), set the output IFL to it
+        if (IFLAG != 1) and (IFLAG != 4):
             IFL=int(IFLAG)
         TO_ENV=TOB_ENV
         OTL_ENV=LNB_ENV
@@ -559,18 +592,25 @@ def _pi_numba(
         RP=utilities.rv(ES0,PP)
         result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle)
         CAPEMS, TOMS, LNBS, IFLAG = result
-        # if the CAPE function tripped a flag, set the output IFL to it
-        if (IFLAG != 1):
+        STAR_NO_LNB = (IFLAG == 4)
+        # if the CAPE function tripped a flag (other than 4, no LNB), set the output IFL to it
+        if (IFLAG != 1) and (IFLAG != 4):
             IFL=int(IFLAG)
         # Store the outflow temperature and level of neutral bouyancy at the outflow level (OTL)
-        TO=TOMS   
+        TO=TOMS
         OTL=LNBS
+        NO_LNB=STAR_NO_LNB
         # Optionally use CAPEenv (final-iteration) outflow definition.
         if outflow_source_flag == 1:
             TO=TO_ENV
             OTL=OTL_ENV
+            NO_LNB=ENV_NO_LNB
         # Calculate the proxy for TC efficiency (BE02, EQN. 1-3)
-        RAT=SSTK/TO
+        if NO_LNB:
+            # no LNB: use the lowest valid temperature to keep RAT finite
+            RAT=SSTK/T_NO_LNB
+        else:
+            RAT=SSTK/TO
         # If dissipative heating is "off", TC efficiency proxy is set to 1.0 (BE02, pg. 3)
         if (diss_flag == 0):
             RAT=1.0
@@ -625,7 +665,19 @@ def _pi_numba(
     # of 10-m winds from gradient wind speeds (Emanuel 2000, Powell 1980)
     FAC=max([0.0,(CAPEMS-CAPEM)])
     VMAX=V_reduc*np.sqrt(CKCD*RAT*FAC)
-        
+
+    #
+    #   ***  cape_env outflow undefined (no LNB): return missing PI with IFL=4   ***
+    #   (unless VMAX/PMIN do not depend on TO: diss_flag=0 or CAPE*=0)
+    #
+    if (outflow_source_flag == 1) and ENV_NO_LNB:
+        if (diss_flag != 0) and (CAPEMS != 0):
+            VMAX=np.nan
+            PMIN=np.nan
+            # do not mask an earlier failure flag
+            if (IFL == 1):
+                IFL=4
+
     # Return the calculated outputs to the above program level
     return(VMAX,PMIN,IFL,TO,OTL)
 
@@ -711,7 +763,12 @@ def pi(
         - ``"cape_star"``: use the saturated CAPE* calculation (parcel saturated at
           SST) (default; matches BE02/pcmin behavior).
         - ``"cape_env"``: use the environmental CAPE calculation (CAPEenv) from the
-          final convergence iteration (as discussed in Gilford et al. 2021).
+          final convergence iteration (discussed in Gilford et al. 2021).
+          The outflow is undefined when the environmental parcel has no level of
+          neutral buoyancy (CAPEenv=0). Such columns return missing outputs with
+          ``IFL=4``, except where VMAX and PMIN do not depend on the outflow
+          (``diss_flag=0``, or CAPE*=0 so that VMAX=0), where only ``TO`` and
+          ``OTL`` are missing.
 
     Returns
     -------
@@ -726,13 +783,17 @@ def pi(
             Status flag:
 
             - ``1``: success
-            - ``0``: no convergence
-            - ``2``: CAPE routine failed to converge
+            - ``0``: improper input (e.g. SST <= 5 C, missing, or in kelvin;
+              unsuitable sounding or parcel)
+            - ``2``: no convergence (PI iteration or CAPE routine)
             - ``3``: CAPE routine failed due to missing data
+            - ``4``: outflow undefined (``outflow_source="cape_env"`` only): the
+              environmental parcel has no level of neutral buoyancy and VMAX/PMIN
+              depend on the outflow temperature; all outputs are missing
         - TO : float
-            Outflow temperature (K).
+            Outflow temperature (K). Missing where the outflow parcel has no LNB (e.g. CAPE*=0).
         - OTL : float
-            Outflow temperature level (hPa), defined as the level of neutral buoyancy.
+            Outflow temperature level (hPa), defined as the level of neutral buoyancy. Missing like TO.
 
     Examples
     --------
@@ -776,11 +837,11 @@ def pi(
         >>> R = level_data[:, 2]
         >>> VMAX, PMIN, IFL, TO, OTL = pi(SSTC, MSL, P, TC, R)
         >>> print(f"VMAX: {VMAX}\nPMIN: {PMIN}\nIFL: {IFL}\nTO: {TO}\nOTL: {OTL}")
-        VMAX: 82.4845...
-        PMIN: 900.2039...
+        VMAX: 82.1713...
+        PMIN: 902.6358...
         IFL: 1
-        TO: 197.1666...
-        OTL: 84.9169...
+        TO: 197.1080...
+        OTL: 85.2099...
 
     Exceptional cases:
         - SST is missing, e.g. over land
@@ -799,7 +860,7 @@ def pi(
 
         - Mixing ratios contain a nan
             >>> pi(SSTC, MSL, P, TC, R + nan_in_levels)
-            (82.4845..., 900.2039..., 1, 197.1666..., 84.9169...)
+            (82.1713..., 902.6358..., 1, 197.1080..., 85.2099...)
     """
     if outflow_source == "cape_star":
         outflow_source_flag = 0

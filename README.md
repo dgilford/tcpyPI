@@ -81,7 +81,7 @@ Users who want to apply the PI calculation to a set of local environmental condi
 - `miss_handle` (default `1`): missing-profile handling; `1` returns missing on any NaNs.
 - `outflow_source` (default `"cape_star"`): how outflow level/temperature are defined:
   - `"cape_star"`: outflow is the LNB (`OTL`) and temperature (`T0`) from the saturated CAPE* calculation (default; BE02/pcmin behavior).
-  - `"cape_env"`: outflow is the LNB and temperature from the environmental CAPE (CAPEenv) on the final convergence iteration (see Gilford et al. 2021 discussion).
+  - `"cape_env"`: outflow is the LNB and temperature from the environmental CAPE (CAPEenv) on the final convergence iteration (see Gilford et al. 2021 discussion). Where the environmental parcel has no level of neutral buoyancy, outputs are missing with `IFL=4` (v1.5+; shallow, lower-tropospheric outflows are common in the subtropics).
 
 Example:
 

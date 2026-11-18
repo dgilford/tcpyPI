@@ -9,6 +9,12 @@
 %   Revised 8/5/16 by D. Gilford to fix the "cape()" function output and include LNB
 %   Revised 10/3/16 by D. Gilford to set the LNB to the pressure-weighted crossing of the buoyancy from negative to positive (the zero-line)
 %
+%   NOTE (11/17/2026): this copy PREDATES K. Emanuel's 2017 revision of pcmin.m that
+%   fixed the definition of JMIN (the lowest level at or above the parcel level; see
+%   Luke Davis 1/7/2017). Here JMIN is always 1, so levels below the parcel enter CAPE
+%   when the parcel pressure is below the lowest sounding level. tcpyPI >= v1.5
+%   implements the fix. This file is retained unmodified for provenance.
+%
 %   ***    This function calculates the maximum wind speed         ***
 %   ***             and mimimum central pressure                   ***
 %   ***    achievable in tropical cyclones, given a sounding       ***
