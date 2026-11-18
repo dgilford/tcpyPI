@@ -129,7 +129,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
             - ``3``: missing values in input profile
             - ``4``: no level of neutral buoyancy (no level strictly above
               JMIN, the lowest level at or above the parcel, is buoyant).
-              If CAPED=0, TOB and LNB are set to missing.
+              CAPED=0, and TOB and LNB are missing.
     """
     #
     #   ***  Handle missing values   ***
@@ -791,9 +791,9 @@ def pi(
               environmental parcel has no level of neutral buoyancy and VMAX/PMIN
               depend on the outflow temperature; all outputs are missing
         - TO : float
-            Outflow temperature (K).
+            Outflow temperature (K). Missing where the outflow parcel has no LNB (e.g. CAPE*=0).
         - OTL : float
-            Outflow temperature level (hPa), defined as the level of neutral buoyancy.
+            Outflow temperature level (hPa), defined as the level of neutral buoyancy. Missing like TO.
 
     Examples
     --------
