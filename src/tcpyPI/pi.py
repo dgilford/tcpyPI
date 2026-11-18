@@ -231,19 +231,14 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
     NCMAX=0
 
     #
-    #   ***  Find JMIN, the lowest profile level at or above the parcel level   ***
-    #   (Luke Davis 1/7/2017 fix, as in pcmin.m since 7/26/2017; GitHub issue #89).
-    #   When the parcel pressure PP is below the lowest sounding level (e.g. PP is
-    #   the central pressure estimate during the PI iteration), levels with
-    #   P > PP lie beneath the parcel and must not enter the CAPE integral.
+    #   ***  Find JMIN, the lowest level at or above the parcel   ***
     #
     jmin=nlvl
     for j in range(nlvl):
         if (P[j] <= PP):
             jmin=j
             break
-    # CHECK: Does any profile level lie at or above the parcel? If not, return
-    # zero CAPE with no level of neutral buoyancy (IFLAG=4)
+    # CHECK: Is any level at or above the parcel? If not, return zero CAPE (IFLAG=4)
     if (jmin == nlvl):
         CAPED=0
         TOB=np.nan
@@ -305,19 +300,12 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
     #
     #   ***  Find maximum level of positive buoyancy, INB    ***
     #
-    # Equivalent to the 2017 pcmin.m test (INB=1; search J=N:-1:JMIN; zero CAPE
-    # if INB==JMIN, or if INB==1 i.e. nothing buoyant): CAPE is zero unless some
-    # level strictly above JMIN is buoyant. NOTE: inherited from pcmin.m, this
-    # makes CAPE jump to zero when the parcel is buoyant only at JMIN, e.g. as
-    # PP crosses a sounding level; with JMIN = 0 it reproduces the original test.
     INB=jmin
     for j in range(nlvl-1, jmin, -1):
         if (TVRDIF[j] > 0):
             INB=max([INB,j])
 
-    # CHECK: Is the LNB higher than the parcel level? If not, return zero CAPE
-    # with no level of neutral buoyancy (IFLAG=4). pcmin.m returns TOB=T(1) here;
-    # pi() applies that convention internally where it needs a finite TO.
+    # CHECK: Is any level above JMIN buoyant? If not, return zero CAPE (IFLAG=4)
     if (INB==jmin):
         CAPED=0
         TOB=np.nan
@@ -556,8 +544,7 @@ def _pi_numba(
     result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle)
     CAPEA = result[0]
     IFLAG = result[3]
-    # if the CAPE function tripped a flag, set the output IFL to it
-    # (IFLAG=4, no level of neutral buoyancy, is a valid zero-CAPE result)
+    # if the CAPE function tripped a flag (other than 4, no LNB), set the output IFL to it
     if (IFLAG != 1) and (IFLAG != 4):
         IFL=int(IFLAG)
     
@@ -574,9 +561,7 @@ def _pi_numba(
 
     TO_ENV=np.nan
     OTL_ENV=np.nan
-    # Temperature used in the efficiency RAT when the outflow parcel has no LNB
-    # (pcmin.m: TOB=T(1)). cape() discards missing lowest levels (miss_handle=0),
-    # so use the lowest valid level.
+    # lowest valid temperature, used in RAT when the outflow parcel has no LNB
     T_NO_LNB=T[np.where(~np.isnan(T))[0][0]]
     # does the environmental (ENV) or saturated (STAR) parcel lack an LNB?
     ENV_NO_LNB=False
@@ -595,9 +580,8 @@ def _pi_numba(
         CAPEM, TOB_ENV, LNB_ENV, IFLAG = cape(
             TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle
         )
-        # IFLAG=4 (no level of neutral buoyancy; TOB/LNB missing) is a valid result
         ENV_NO_LNB = (IFLAG == 4)
-        # if the CAPE function tripped a different flag, set the output IFL to it
+        # if the CAPE function tripped a flag (other than 4, no LNB), set the output IFL to it
         if (IFLAG != 1) and (IFLAG != 4):
             IFL=int(IFLAG)
         TO_ENV=TOB_ENV
@@ -613,11 +597,10 @@ def _pi_numba(
         result = cape(TP,RP,PP,T,R,P,ascent_flag,ptop,miss_handle)
         CAPEMS, TOMS, LNBS, IFLAG = result
         STAR_NO_LNB = (IFLAG == 4)
-        # if the CAPE function tripped a flag, set the output IFL to it
+        # if the CAPE function tripped a flag (other than 4, no LNB), set the output IFL to it
         if (IFLAG != 1) and (IFLAG != 4):
             IFL=int(IFLAG)
         # Store the outflow temperature and level of neutral bouyancy at the outflow level (OTL)
-        # (both missing if the parcel has no LNB)
         TO=TOMS
         OTL=LNBS
         NO_LNB=STAR_NO_LNB
@@ -628,13 +611,7 @@ def _pi_numba(
             NO_LNB=ENV_NO_LNB
         # Calculate the proxy for TC efficiency (BE02, EQN. 1-3)
         if NO_LNB:
-            # The outflow is undefined, but the iteration needs a finite RAT: use
-            # the pcmin.m convention (lowest-level temperature). For "cape_star"
-            # this is CAPE*=0, where the efficiency term vanishes at convergence
-            # (VMAX=0). For "cape_env" it must be kept at intermediate iterates:
-            # substituting the CAPE* outflow made the fixed-point map
-            # discontinuous and caused new non-convergence (IFL=2) in testing.
-            # Only the converged state matters; it is checked after the loop.
+            # no LNB: use the lowest valid temperature to keep RAT finite
             RAT=SSTK/T_NO_LNB
         else:
             RAT=SSTK/TO
@@ -694,15 +671,9 @@ def _pi_numba(
     VMAX=V_reduc*np.sqrt(CKCD*RAT*FAC)
 
     #
-    #   ***  Outflow undefined: no level of neutral buoyancy (GitHub issue #90)  ***
+    #   ***  cape_env outflow undefined (no LNB): return missing PI with IFL=4   ***
+    #   (unless VMAX/PMIN do not depend on TO: diss_flag=0 or CAPE*=0)
     #
-    # TO and OTL are already missing. With "cape_star" (CAPE*=0), VMAX=0 and PMIN
-    # do not depend on the outflow. With "cape_env", VMAX and PMIN depend on the
-    # undefined outflow through RAT, which multiplies (CAPEMS-CAPEM) = CAPEMS
-    # (CAPEM=0 without an LNB), unless dissipative heating is off (RAT=1) or
-    # CAPE*=0. Otherwise return missing PI with IFL=4 rather than substituting
-    # the CAPE* outflow (which would mix the two definitions in one field).
-    # NaN CAPEMS (missing data) also lands here: NaN != 0 is True.
     if (outflow_source_flag == 1) and ENV_NO_LNB:
         if (diss_flag != 0) and (CAPEMS != 0):
             VMAX=np.nan
