@@ -13,7 +13,7 @@
 %   fixed the definition of JMIN (the lowest level at or above the parcel level; see
 %   Luke Davis 1/7/2017). Here JMIN is always 1, so levels below the parcel enter CAPE
 %   when the parcel pressure is below the lowest sounding level. tcpyPI >= v1.5
-%   implements the fix (GitHub issue #89); retained unmodified for provenance.
+%   implements the fix. This file is retained unmodified for provenance.
 %
 %   ***    This function calculates the maximum wind speed         ***
 %   ***             and mimimum central pressure                   ***
