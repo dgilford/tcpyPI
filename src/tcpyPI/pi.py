@@ -36,16 +36,14 @@ Revision History:
     - Added `outflow_source` option ("cape_star" vs "cape_env") to control how outflow temperature/level are defined.
     - Added log decomposition API (`log_decompose_pi`, `pi_log_decomposition`) and updated sample workflow/docs to use it.
     - Standardized main-module docstrings (NumPy style) and expanded README guidance on sensitivity/configuration options.
-  Revised 11/17/2026 by D. Gilford (v1.5; thanks to M. Morrissey for reporting both issues):
+  Revised 11/17/2026 by D. Gilford (v1.5; thanks to M. Morrissey):
     - Implemented the 1/7/2017 JMIN fix listed above, which had never been carried into pyPI:
       JMIN is now the lowest level at or above the parcel, so levels below the parcel no longer
-      enter CAPE during the PI iteration (#89). PI was slightly too intense; PMIN rises by ~1 hPa
-      on average (sample data, 40S-40N ocean), more for deeper storms, with essentially no change
-      where PMIN >= 1000 hPa. Matches the 2017 pcmin.m, including its zero-CAPE rule when the
-      parcel is buoyant only at JMIN.
+      enter CAPE during the PI iteration. Now matches the 2017 pcmin.m, including its zero-CAPE rule 
+      when the parcel is buoyant only at JMIN.
     - outflow_source="cape_env": if the converged environmental parcel has no level of neutral
       buoyancy, return missing PI with new flag IFL=4 instead of using the lowest-level air
-      temperature as TO with OTL=0 (#90, #70); where VMAX/PMIN do not depend on the outflow
+      temperature as TO with OTL=0; where VMAX/PMIN do not depend on the outflow
       (diss_flag=0 or CAPE*=0) only TO/OTL are missing. With "cape_star", TO and OTL are now
       reported as missing (instead of T[0] and 0) when CAPE*=0; VMAX and PMIN are unchanged.
     - cape(): when the parcel has no level of neutral buoyancy, return IFLAG=4 with missing TOB
@@ -119,11 +117,9 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
         - CAPED : float
             Convective available potential energy (J/kg).
         - TOB : float
-            Temperature at level of neutral buoyancy (K). Missing if the parcel
-            has no level of neutral buoyancy (``IFLAG=4``).
+            Temperature at level of neutral buoyancy (K).
         - LNB : float
-            Level of neutral buoyancy pressure (hPa). Missing if the parcel has
-            no level of neutral buoyancy (``IFLAG=4``).
+            Level of neutral buoyancy pressure (hPa).
         - IFLAG : int
             Status flag:
 
@@ -133,7 +129,7 @@ def cape(TP,RP,PP,T,R,P,ascent_flag=0,ptop=50,miss_handle=1):
             - ``3``: missing values in input profile
             - ``4``: no level of neutral buoyancy (no level strictly above
               JMIN, the lowest level at or above the parcel, is buoyant).
-              A valid result: CAPED=0, and TOB and LNB are missing.
+              If CAPED=0, TOB and LNB are set to missing.
     """
     #
     #   ***  Handle missing values   ***
@@ -767,17 +763,12 @@ def pi(
         - ``"cape_star"``: use the saturated CAPE* calculation (parcel saturated at
           SST) (default; matches BE02/pcmin behavior).
         - ``"cape_env"``: use the environmental CAPE calculation (CAPEenv) from the
-          final convergence iteration (as discussed in Gilford et al. 2021).
+          final convergence iteration (discussed in Gilford et al. 2021).
           The outflow is undefined when the environmental parcel has no level of
           neutral buoyancy (CAPEenv=0). Such columns return missing outputs with
           ``IFL=4``, except where VMAX and PMIN do not depend on the outflow
           (``diss_flag=0``, or CAPE*=0 so that VMAX=0), where only ``TO`` and
-          ``OTL`` are missing. This missingness is not random: it preferentially
-          removes dry or stable environments, so compare against ``"cape_star"``
-          on the common set of valid columns. CAPEenv outflow is also sensitive
-          near marginal profiles: small input changes can switch the
-          environmental LNB between deep and shallow layers and shift PMIN by
-          tens of hPa in a small fraction of columns.
+          ``OTL`` are missing.
 
     Returns
     -------
@@ -800,11 +791,9 @@ def pi(
               environmental parcel has no level of neutral buoyancy and VMAX/PMIN
               depend on the outflow temperature; all outputs are missing
         - TO : float
-            Outflow temperature (K). Missing if the parcel supplying the outflow
-            has no level of neutral buoyancy.
+            Outflow temperature (K).
         - OTL : float
             Outflow temperature level (hPa), defined as the level of neutral buoyancy.
-            Missing if the parcel supplying the outflow has no level of neutral buoyancy.
 
     Examples
     --------
